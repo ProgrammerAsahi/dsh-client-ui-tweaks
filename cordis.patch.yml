@@ -1,0 +1,4 @@
+# dsh-client-ui-edit-resend bundle patch：注册插件加载项
+- insert:
+    - id: edit-resend
+      name: 'dsh-client-ui-edit-resend'
