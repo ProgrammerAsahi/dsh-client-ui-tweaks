@@ -7,10 +7,10 @@
  * 3. /edit-resend-inbox：读取子会话日志中、最后一个 turn/end 之后经 next-turn splice
  *    排队的消息（供客户端在 open 之前移除，防止继承队列导致的原问题重放/重答）。
  */
-import { readFile, writeFile, mkdir, readdir } from "node:fs/promises";
+import { readFile, writeFile, mkdir, readdir, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { execFile } from "node:child_process";
+import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 
 /** Stable Cordis plugin name. */
@@ -47,6 +47,44 @@ async function findSessionLog(sessionId) {
     } catch {}
   }
   return null;
+}
+
+/** 会话的持久标题（日志里最后一条 session/title 事件），按日志 mtime 缓存。
+ *  流式扫描，不把整个解压结果读进内存（长会话日志可达几十 MB）。 */
+const titleCache = new Map();
+async function readSessionTitle(sessionId) {
+  const log = await findSessionLog(sessionId);
+  if (!log) return undefined;
+  const { mtimeMs } = await stat(log);
+  const hit = titleCache.get(sessionId);
+  if (hit && hit.mtimeMs === mtimeMs) return hit.title;
+  const title = await new Promise((resolve, reject) => {
+    const child = spawn("zstd", ["-d", "-c", log]);
+    let tail = "";
+    let last;
+    const scan = (line) => {
+      if (!line.includes('"session/title"')) return;
+      try {
+        const event = JSON.parse(line);
+        if (event?.type === "session/title" && typeof event?.data?.title === "string") last = event.data.title;
+      } catch {}
+    };
+    child.stdout.on("data", (chunk) => {
+      tail += chunk;
+      let idx;
+      while ((idx = tail.indexOf("\n")) >= 0) {
+        scan(tail.slice(0, idx));
+        tail = tail.slice(idx + 1);
+      }
+    });
+    child.on("error", reject);
+    child.on("close", () => {
+      if (tail) scan(tail);
+      resolve(last);
+    });
+  });
+  titleCache.set(sessionId, { mtimeMs, title });
+  return title;
 }
 
 /** 读取会话日志里、最后一个 turn/end 之后经 next-turn splice 排队的消息。 */
@@ -88,7 +126,20 @@ export function apply(ctx) {
           res.end(text);
         };
         if (req.method === "GET") {
-          send(200, { branches: await readStore() });
+          const branches = await readStore();
+          const ids = new Set();
+          for (const b of branches) {
+            if (typeof b?.parentId === "string") ids.add(b.parentId);
+            if (typeof b?.childId === "string") ids.add(b.childId);
+          }
+          const titles = {};
+          for (const id of ids) {
+            try {
+              const title = await readSessionTitle(id);
+              if (typeof title === "string") titles[id] = title;
+            } catch {}
+          }
+          send(200, { branches, titles });
           return;
         }
         if (req.method === "POST") {
