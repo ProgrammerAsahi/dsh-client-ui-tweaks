@@ -8,9 +8,11 @@ dsh 界面微调合集插件（本地自研，cordis 包，不走插件市场）
 
 | 文件 | 角色 | 改动生效方式 |
 |---|---|---|
-| `index.js` | 宿主端（cordis，inject `webServer`）：`/edit-resend-branches`（分支记录 + 日志标题真值）、`/edit-resend-inbox`（fork 继承队列检查） | **必须重启 DSH Desktop** |
-| `lib/client.js` | 浏览器端全部交互（ModuleLoader 单文件，无构建步骤）：编辑按钮、内联编辑框、fork 流程、`‹ n/N ›` 箭头、侧栏家族归并 | **页面 reload 即生效** |
+| `index.js` | 宿主端（cordis，inject `webServer`）：`/edit-resend-branches`（分支记录 + 日志标题真值）、`/edit-resend-inbox`（fork 继承队列检查）、`/auto-title`（K3 总结标题，凭据只读） | **必须重启 DSH Desktop** |
+| `lib/client.js` | 浏览器端全部交互（ModuleLoader 单文件，无构建步骤）：编辑按钮、内联编辑框、fork 流程、`‹ n/N ›` 箭头、侧栏家族归并、自动标题触发 + 像素海浪 | **页面 reload 即生效** |
+| `prompts/title.txt` | K3 标题总结 prompt（宿主端 mtime 缓存读取） | 下次调用即生效 |
 | `branches.json` | 分支族谱数据（用户真实数据，勿删勿重置） | 运行期被宿主端读写 |
+| `autotitle.json` | 插件写过的标题记录（钉住保护比对用，勿删） | 运行期被宿主端读写 |
 | `cordis.patch.yml` | 注册行，与 profile 的 bundles 项配套 | 重启应用 |
 
 `package.json` 的 `name`、`index.js` 的 `export const name`、`lib/client.js` 的 ModuleLoader `id`、`cordis.patch.yml` 的 `name`、profile 注册——五处必须永远保持一致（当前均为 `dsh-client-ui-tweaks`）。
@@ -25,6 +27,8 @@ dsh 界面微调合集插件（本地自研，cordis 包，不走插件市场）
 6. **窗口 hidden 时 rAF 不触发**——任何 MutationObserver → 渲染的调度必须有 `setTimeout` 兜底。
 7. **订阅优先于轮询**：`uiSession.adapter.current.subscribe`、`sessions.list.subscribe`，用完在 `ctx.effect` 里 unsubscribe。
 8. 宿主端读日志用**流式扫描**（长会话解压后几十 MB）；`zstd` CLI 依赖 `/opt/homebrew/bin/zstd`。
+9. **kimi-coding OAuth 凭据只读**：`~/.kimi-code/credentials/kimi-code.json` 的 access_token 直接用，过期就跳过本次调用，**绝不自己 refresh/写回**（refresh 会轮换 refresh_token，和 harness/CLI 抢写会顶掉登录）。触发时机天然保新鲜（用户发消息/compact 时 harness 自己就在调模型）。
+10. **用户手动标题不可覆盖**：`session/title` 事件 `source.kind:"user"` = 钉住；插件自己 rename 的也是 user kind，所以要靠 `autotitle.json` 比对区分"用户改的"和"我们写的"。
 
 ## 代码风格
 

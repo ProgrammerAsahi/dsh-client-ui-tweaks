@@ -34,8 +34,23 @@
 10. **rename 前提**：`sessions.binding(id).session.rename(title)` 要求会话在列表快照里；宿主侧会自动 resume，不需要打开过。rename 后顶部标题（ConversationSessionHeader）与侧栏同步更新。
 11. **zstd 依赖**：`/opt/homebrew/bin/zstd` 必须在 PATH。长会话日志解压后几十 MB，读标题用流式扫描（spawn + 逐行），别整个读进内存。
 12. **侧栏行 key 的分隔符是不可见字符 `\001`**（`` `${title}\001${time}` ``）——Read 工具把它显示成空格，按文本编辑该行会静默失配；改 key 构造必须两端一起改且保留 `\001`。
+13. **compaction 事件族**：`compaction/start` → `compaction/prune`×N → `compaction/summary`（`data.summary` 数组 = dsh 自己模型生成的压缩前对话总结，markdown 结构，可直接当标题素材）→ `compaction/end`，同一轮用 `data.compactionId` 串联。UI 侧标志是对话区的 `[class*="_compactionRow"]`（含"已压缩 N 条历史记录"）；旧压缩行会随滚动懒渲染，触发判断要用"行数比打开时多"做基线 + 宿主端 `compaction/end.time` 3 分钟时间窗双保险。
+14. **每回合日志里 `user/message` 有多条**：真人消息 `data.source.kind:"user"`，其余是 `agent-instructions`/`plugin`/`skill-catalog` 等注入（role 也是 user）。数"首条消息"必须按 kind 过滤，否则永远 >1。
+15. **kimi-coding 模型调用**：endpoint `https://api.kimi.com/coding/v1/messages`，anthropic-messages 协议，`authorization: Bearer <access_token>`，模型 id `k3`，思考档 `thinking:{type:"adaptive"} + output_config:{effort:"low"}`（thinkingLevelMap 最低可用档是 low）。**`max_tokens` 别给 64**——adaptive thinking 的思考链也吃这个预算，偶发耗光会导致响应只有 thinking 块没有 text 块（表现为返回空）；512 稳妥。凭据在 `~/.kimi-code/credentials/kimi-code.json`（expires_in 900s，只读不刷新——见 AGENTS.md 约束 #9）。
+16. **CDP 合成事件清不掉 React 控制的 composer**（selectAll/delete/Selection API 都会被 reconcile 回来）；要清空输入框得用 kimi-cu 的 `type_text` 带 `clear:true`（真实按键）。`/compact` 指令菜单同理：`button[role="option"]` 用合成 click 可以点中，但文本残留时菜单不弹——先清干净。
 
-## 当前状态（2026-09-20，第二轮）
+## 当前状态（2026-09-20，第三轮：auto-title 上线）
+
+- 新功能**自动总结标题 + 像素海浪**全链路实测通过（CDP + 一次性会话，均已删净）：
+  - 首条消息 → K3 总结标题（"给我三个提高工作效率的小技巧" → "提高生产力的三个技巧"）+ 海浪 ✓
+  - `/compact` → 整段对话总结标题 + 第二次海浪 ✓
+  - 手动改名后再 compact → 宿主返回 `skip:"user-pinned"`，标题不动 ✓
+- 踩坑记录见硬知识 #13-#16（compaction 事件族、user/message 注入多写、max_tokens 陷阱、React composer 清空）。
+- 上一轮的 ISSUES 修复（#1-#5 修复、#6 缓解）本轮回归未受影响（侧栏家族归并实测正常）。
+- `branches.json` 2 条真实记录未动；`autotitle.json` 已重置为空（测试记录随会话删除）。
+- 桌面版最后以无调试参数的干净方式重启。
+
+## 历史快照（2026-09-20 第二轮：ISSUES 修复）
 
 - 全天两轮 CDP 端到端实测通过：fork 编辑（会话中途消息）+ create 编辑（首条消息）双流程，编辑内联框、锚点精确、继承队列按 id 清除无重放、`‹ n/N ›` 箭头双向切换、家族侧栏单行、标题统一、宿主路由 200/404 语义。
 - ISSUES 原 6 条待修已处理：#1-#5 修复（锁释放、日志名候选+404、队列清除改 id 精准匹配、purge 不碰用户新排、locateNode 弃索引回退），#6 加选中态偏好缓解、残余风险留档。
@@ -45,7 +60,7 @@
 
 ## 已定方向 / 下一步（用户认可过，未动工）
 
-- 新功能区（与编辑重发并列）：①侧栏无标题会话显示首条消息摘要（**纯展示层**，别替它写死标题）；②对话过程信息默认折叠/可展开。
+- ~~新功能区①：侧栏无标题会话显示首条消息摘要（纯展示层）~~ → 已由 auto-title 替代（2026-09-20 第三轮上线：直接写 K3 总结标题，比纯展示层更进一步）；②对话过程信息默认折叠/可展开，未动工。
 - 代码结构：client.js 按 feature 分区，每区独立 try/catch 挂载，坏一个不拖垮其他。
 - ~~ISSUES.md 里 6 条待修~~ → 2026-09-20 已全部处理（见 ISSUES.md 已修复）。
 

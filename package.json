@@ -1,7 +1,7 @@
 {
   "name": "dsh-client-ui-tweaks",
-  "version": "0.2.1",
-  "description": "Assorted dsh UI tweaks: edit-and-resend for user messages with branch switching, sidebar branch-family grouping, unified branch titles.",
+  "version": "0.3.0",
+  "description": "Assorted dsh UI tweaks: edit-and-resend with branch switching, sidebar branch-family grouping, unified branch titles, auto summary titles (Kimi K3) with pixel ocean-wave effect.",
   "type": "module",
   "main": "index.js",
   "exports": {
@@ -14,6 +14,7 @@
     "index.js",
     "cordis.patch.yml",
     "lib/client.js",
+    "prompts/title.txt",
     "README.md"
   ],
   "dsh": {

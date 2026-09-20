@@ -17,12 +17,23 @@ dsh 界面微调合集插件（本地自研，不走插件市场）。目前包�
 - 打开家族会话时自动落到 `updatedAt` 最新的成员（切走再切回 = 回到最近工作过的分支）；箭头切换走旁路
 - 侧栏行通过 (displayTitle, timeLabel(updatedAt)) 对精确映射到会话（复刻 dsh 的相对时间分桶），冷启动标题退化为目录名时也可分
 
+## 自动总结标题 + 像素海浪（auto-title）
+
+- 新会话发出首条消息后：Kimi K3（最低思考档 `effort: "low"`）把消息总结成 ≤15 字标题写入会话；prompt 独立成文件 `prompts/title.txt`，改文案不用动代码
+- 多消息会话在 compact 完成时（手动 `/compact` 或上下文满了自动压缩）：取日志里 `compaction/summary`（dsh 自己生成的压缩前对话总结）提炼成新标题
+- 标题落定瞬间，侧栏对应行会掠过一波像素海浪：低分辨率 canvas + `image-rendering: pixelated`，颜色抄活体 StateDot 的 dsh 深蓝（`#5686fe` 兜底），与标题左侧转圈圈的像素风一致；setTimeout 链驱动，窗口隐藏也能播
+- 不碰的会话：用户手动改过名的（`session/title` 事件 `source.kind:"user"` 且与插件记录不符 → 永久跳过）；分支家族（标题由 edit-resend 统一）；超过 10 分钟的旧消息/超过 3 分钟的旧压缩（挡快照异步加载与懒渲染的误触发）
+- 令牌纪律：只读 `~/.kimi-code/credentials/kimi-code.json`（Kimi Code 订阅 OAuth），过期即跳过本次，**绝不自己 refresh**（refresh 会轮换 refresh_token，和 harness/CLI 抢写会顶掉登录）；触发瞬间 harness 自己正在调模型，令牌天然新鲜
+- 宿主路由 `POST /auto-title`：`{sessionId, kind:"first"|"compact", text?}` → `{title}` / `{skip:原因}`；skip 全静默，不留错误 UI
+
 ## 结构
 
 ```
-├── index.js          # 宿主端：/edit-resend-branches（分支记录 + 日志标题真值）、/edit-resend-inbox（继承队列检查）
-├── lib/client.js     # 浏览器端：全部交互（编辑按钮、内联编辑框、fork、队列清除、箭头、侧栏归并）
+├── index.js          # 宿主端：/edit-resend-branches（分支记录 + 日志标题真值）、/edit-resend-inbox（继承队列检查）、/auto-title（K3 总结标题）
+├── lib/client.js     # 浏览器端：全部交互（编辑按钮、内联编辑框、fork、队列清除、箭头、侧栏归并、自动标题触发 + 像素海浪）
+├── prompts/title.txt # K3 标题总结 prompt（独立文件，mtime 缓存，改文案不动代码）
 ├── branches.json     # 分支族谱记录（持久化数据）
+├── autotitle.json    # 插件写过的标题记录（钉住保护比对用）
 └── cordis.patch.yml  # 插件注册行
 ```
 
