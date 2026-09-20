@@ -32,29 +32,23 @@
 - 后果：若用户在新分支打开后、该函数仍在轮询的窗口内自己排了消息，会被误清。窗口小但存在。
 - 修复方向：只删 `/edit-resend-inbox` 回报过的继承项 id，不碰其余。
 
-### 5. `README.md` 内容过时
-
-- 位置：`README.md` 全文。
-- 症状：仍描述初版（"纯浏览器端插件，无宿主侧逻辑"、回填输入框交互）。
-- 后果：与当前实现（宿主端路由 + 内联编辑 + fork 分支 + `‹ n/N ›` 箭头 + 侧栏家族归并 + 标题统一）完全脱节，误导后续维护。
-- 修复方向：功能稳定后重写。
-
-### 6. `locateNode` 的索引对齐回退不可靠（低优先级）
+### 5. `locateNode` 的索引对齐回退不可靠（低优先级）
 
 - 位置：`lib/client.js` `locateNode`。
 - 症状：文本匹配失败时按 `rows.indexOf(row)` 对齐 `nodes`；注释已自述"索引映射在 context 消息穿插时不可靠"。
 - 后果：失配时编辑按钮可能定位到错误消息节点（拿错 seq/内容）。
 - 修复方向：提高文本匹配覆盖率（附件消息用附件名/占位文本），或放弃索引回退改为不挂按钮。
 
-### 7. 侧栏行映射的残余碰撞面（低优先级）
+### 6. 侧栏行映射的残余碰撞面（低优先级）
 
 - 位置：`lib/client.js` `syncBranchRows` / `sessionRowsByKey`。
 - 现状（2026-09-19 优化后）：侧栏行通过 (displayTitle, timeLabel(updatedAt)) 对精确映射到家族成员，冷启动标题退化为 cwd 名时也可分。
 - 残余风险：同工作区、同 cwd 退化名、且 updatedAt 落在同一时间桶（如都是"2天"）的无标题会话可能撞 key，导致非家族行被误归并。概率低，自愈于下一次同步。
 - 另：选择器 `[class*="_title"]/[_time]` 依赖 CSS-module 的本地名后缀（比完整哈希类名稳定，但非零风险）；`role="treeitem"` 是结构性锚点，较稳。
 
-## 已修复（2026-09-19 UX 优化轮）
+## 已修复
 
+- ~~`README.md` 内容过时~~ → 2026-09-20 随改名 `dsh-client-ui-tweaks` 重写，与现实现一致。
 - ~~依赖构建期哈希类名 `.YDXeBa_sessionRow`/`.YDXeBa_title`~~ → 侧栏行改走 `role="treeitem"` + 本地名后缀 + (标题,时间)映射；`parentTitle` 改从宿主读会话日志的 `session/title` 真值（GET `/edit-resend-branches` 返回 `titles`）。
 - ~~分支标题带 ` (n)` 编号导致顶部标题与侧栏不一致~~ → 分支创建即改名与父会话同名（rename 会写 `session/title` 并钉住标题，顶部与侧栏同源于 sessions 快照）；旧记录由 `migrateBranchTitles` 启动时自愈。
 - ~~切走再切回默认落在 1/N 原版~~ → 订阅 `uiSession.adapter.current` 变化，打开家族会话时重定向到 updatedAt 最新的成员（箭头切换走旁路）；侧栏每个家族只留一行可见（当前成员 > 运行中 > 刚完成 > 最近更新），点击进入的即为最近工作分支。

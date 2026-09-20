@@ -1,28 +1,45 @@
 /**
- * dsh-client-ui-edit-resend — host half.
+ * dsh-client-ui-tweaks — host half.
  *
  * 三条职责：
  * 1. 让 cordis 包契约成立（滑块同款）。
- * 2. /edit-resend-branches：分支记录（childId/parentId/parentMsgSeq/anchorSeq/createdAt）读写。
+ * 2. /edit-resend-branches：分支记录（childId/parentId/parentMsgSeq/anchorSeq/createdAt）读写，
+ *    并从会话日志读出各会话的持久标题（session/title 事件真值）一并返回。
  * 3. /edit-resend-inbox：读取子会话日志中、最后一个 turn/end 之后经 next-turn splice
  *    排队的消息（供客户端在 open 之前移除，防止继承队列导致的原问题重放/重答）。
  */
 import { readFile, writeFile, mkdir, readdir, stat } from "node:fs/promises";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import { homedir } from "node:os";
 import { execFile, spawn } from "node:child_process";
 import { promisify } from "node:util";
 
 /** Stable Cordis plugin name. */
-export const name = "dsh-client-ui-edit-resend";
+export const name = "dsh-client-ui-tweaks";
 /** Services required before the JSON route can be mounted. */
 export const inject = ["webServer"];
 
 const execFileAsync = promisify(execFile);
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)));
-const HOME = resolve(pluginRoot, "..", "..");
-const SESSIONS_ROOT = join(HOME, "sessions");
 const STORE = join(pluginRoot, "branches.json");
+
+/** dsh 家目录定位：优先 ~/.dsh（桌面版与网页版共享的家目录软链），回退到插件上两级。 */
+let sessionsRootPromise = null;
+function resolveSessionsRoot() {
+  if (!sessionsRootPromise) {
+    sessionsRootPromise = (async () => {
+      for (const home of [join(homedir(), ".dsh"), resolve(pluginRoot, "..", "..")]) {
+        try {
+          const candidate = join(home, "sessions");
+          if ((await stat(candidate)).isDirectory()) return candidate;
+        } catch {}
+      }
+      return join(homedir(), ".dsh", "sessions");
+    })();
+  }
+  return sessionsRootPromise;
+}
 
 async function readStore() {
   try {
@@ -39,8 +56,9 @@ async function writeStore(branches) {
 }
 
 async function findSessionLog(sessionId) {
-  for (const ws of await readdir(SESSIONS_ROOT)) {
-    const candidate = join(SESSIONS_ROOT, ws, sessionId, "session.v3.jsonl.zstd");
+  const sessionsRoot = await resolveSessionsRoot();
+  for (const ws of await readdir(sessionsRoot)) {
+    const candidate = join(sessionsRoot, ws, sessionId, "session.v3.jsonl.zstd");
     try {
       await readFile(candidate);
       return candidate;

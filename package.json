@@ -1,7 +1,7 @@
 {
-  "name": "dsh-client-ui-edit-resend",
-  "version": "0.1.0",
-  "description": "Edit-and-resend for sent user messages: an edit button on each user message that returns its text and attachments to the composer draft.",
+  "name": "dsh-client-ui-tweaks",
+  "version": "0.2.0",
+  "description": "Assorted dsh UI tweaks: edit-and-resend for user messages with branch switching, sidebar branch-family grouping, unified branch titles.",
   "type": "module",
   "main": "index.js",
   "exports": {
