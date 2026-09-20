@@ -4,50 +4,21 @@
 
 ## 待修复
 
-### 1. `sendEdited` 早退不释放全局锁（高优先级）
-
-- 位置：`lib/client.js` `sendEdited` 里 `if (typeof seq !== "number") return;`
-- 症状：该 return 发生在 `sendInFlight = true` 且已乐观渲染之后，既没有 `clearOptimistic(row)` 也没有 `sendInFlight = false`。
-- 后果：一旦命中（节点没有数字 seq），该行卡在乐观泡泡状态，且全局发送锁永久占用——之后所有编辑发送都被静默忽略，只能刷新页面。
-- 修复方向：与其余失败分支一致，走 `clearOptimistic(row)` + 释放锁。
-
-### 2. `findSessionLog` 只认 `session.v3.jsonl.zstd`
-
-- 位置：`index.js` `findSessionLog`。
-- 症状：当前 dsh 会话均为 v3，但家目录还有旧格式 `session.jsonl.zstd`（v0，子代理/旧会话）不匹配。
-- 后果：若未来日志格式改名，`/edit-resend-inbox` 与标题读取静默失效 → 旧 bug（重答原问题）无声复活。
-- 修复方向：候选文件名列全（v3 + 旧名），或按目录内最新 `.zstd` 选取；找不到时返回明确状态而非空数组。
-
-### 3. 继承队列清除的文本模糊匹配有边界漏洞
-
-- 位置：`lib/client.js` `sendEdited` 里 `originalText` 计算与 `item.text.includes(originalText.slice(0, 30))`。
-- 症状 a：`originalText` 为空（纯附件消息）时整个清除步骤被跳过，继承的空文本队列项会留下来被重放。
-- 症状 b：前 30 字前缀匹配，遇到队列里有多条相近前缀的消息（如用户排队了相似 steering 消息）可能误删。
-- 修复方向：优先按事件来源/消息 id 精确判定（继承项在日志中有 splice 事件可对照），文本匹配只作兜底。
-
-### 4. `purgeInheritedQueue` 全量清队列，存在误删窗口
-
-- 位置：`lib/client.js` `purgeInheritedQueue`。
-- 症状：不区分来源，`queueMirror.snapshot()` 里的项一律 remove。open 之后的轮询循环里反复调用。
-- 后果：若用户在新分支打开后、该函数仍在轮询的窗口内自己排了消息，会被误清。窗口小但存在。
-- 修复方向：只删 `/edit-resend-inbox` 回报过的继承项 id，不碰其余。
-
-### 5. `locateNode` 的索引对齐回退不可靠（低优先级）
-
-- 位置：`lib/client.js` `locateNode`。
-- 症状：文本匹配失败时按 `rows.indexOf(row)` 对齐 `nodes`；注释已自述"索引映射在 context 消息穿插时不可靠"。
-- 后果：失配时编辑按钮可能定位到错误消息节点（拿错 seq/内容）。
-- 修复方向：提高文本匹配覆盖率（附件消息用附件名/占位文本），或放弃索引回退改为不挂按钮。
-
-### 6. 侧栏行映射的残余碰撞面（低优先级）
+### 1. 侧栏行映射的残余碰撞面（低优先级，2026-09-20 已缓解）
 
 - 位置：`lib/client.js` `syncBranchRows` / `sessionRowsByKey`。
-- 现状（2026-09-19 优化后）：侧栏行通过 (displayTitle, timeLabel(updatedAt)) 对精确映射到家族成员，冷启动标题退化为 cwd 名时也可分。
-- 残余风险：同工作区、同 cwd 退化名、且 updatedAt 落在同一时间桶（如都是"2天"）的无标题会话可能撞 key，导致非家族行被误归并。概率低，自愈于下一次同步。
+- 现状：侧栏行通过 (displayTitle, timeLabel(updatedAt)) 对精确映射到家族成员，冷启动标题退化为 cwd 名时也可分；撞 key 时优先认领"选中态 == 是否当前会话"的行。
+- 残余风险：同工作区、同 cwd 退化名、且 updatedAt 落在同一时间桶的无标题会话仍可能撞 key，导致非家族行被误归并。概率低，自愈于下一次同步。
 - 另：选择器 `[class*="_title"]/[_time]` 依赖 CSS-module 的本地名后缀（比完整哈希类名稳定，但非零风险）；`role="treeitem"` 是结构性锚点，较稳。
+- 注意：行 key 的分隔符是不可见字符 `\001`（Read 工具显示为空格）——编辑 key 构造行时别把它改成普通空格，两端必须一致。
 
 ## 已修复
 
+- ~~`sendEdited` 早退不释放全局锁~~ → 2026-09-20：`seq` 非数字的早退分支补齐 `clearOptimistic(row)` + `sendInFlight = false`，与同类失败分支一致。
+- ~~`findSessionLog` 只认 `session.v3.jsonl.zstd`~~ → 2026-09-20：候选名 v3 + v0 旧名，再兜底目录内最新 `.jsonl.zstd`；日志缺失时 `/edit-resend-inbox` 返回 404（区别于"没排队项"的 200 空数组）；客户端 404 重试、200 空即停（无继承项时省掉 2s 轮询）。
+- ~~继承队列清除的文本模糊匹配有边界漏洞~~ → 2026-09-20：废除文本匹配——open 前子会话日志里的 next-turn 队列项只可能是继承来的（用户还碰不到子会话），按 `/edit-resend-inbox` 回报 id 精确移除；纯附件消息空文本被跳过、相近前缀误删两种情况同愈。
+- ~~`purgeInheritedQueue` 全量清队列，存在误删窗口~~ → 2026-09-20：只删继承项 id；`state.clean` 确认后不再 cancel running（用户自己跑的回合不动）。inbox 读取失败（404 重试耗尽=宿主/日志故障）时 `purgeIds=null` 退化为全量清理兜底——宁可误清不可让重放复活。
+- ~~`locateNode` 的索引对齐回退不可靠~~ → 2026-09-20：弃用索引回退；探测文本加附件名（纯附件消息也能匹配）；匹配不上则不挂按钮且不设 PROCESSED，下轮 DOM 变化自动重试——挂错按钮比不挂更糟。
 - ~~`README.md` 内容过时~~ → 2026-09-20 随改名 `dsh-client-ui-tweaks` 重写，与现实现一致。
 - ~~依赖构建期哈希类名 `.YDXeBa_sessionRow`/`.YDXeBa_title`~~ → 侧栏行改走 `role="treeitem"` + 本地名后缀 + (标题,时间)映射；`parentTitle` 改从宿主读会话日志的 `session/title` 真值（GET `/edit-resend-branches` 返回 `titles`）。
 - ~~分支标题带 ` (n)` 编号导致顶部标题与侧栏不一致~~ → 分支创建即改名与父会话同名（rename 会写 `session/title` 并钉住标题，顶部与侧栏同源于 sessions 快照）；旧记录由 `migrateBranchTitles` 启动时自愈。

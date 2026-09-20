@@ -55,13 +55,21 @@ async function writeStore(branches) {
   await writeFile(STORE, JSON.stringify({ version: 1, branches }, null, 2));
 }
 
+// 日志文件名候选：v3 现行格式 + v0 旧名；再兜底目录内任意 .jsonl.zstd，防未来格式改名静默失效
+const LOG_NAMES = ["session.v3.jsonl.zstd", "session.jsonl.zstd"];
 async function findSessionLog(sessionId) {
   const sessionsRoot = await resolveSessionsRoot();
   for (const ws of await readdir(sessionsRoot)) {
-    const candidate = join(sessionsRoot, ws, sessionId, "session.v3.jsonl.zstd");
+    const dir = join(sessionsRoot, ws, sessionId);
+    for (const name of LOG_NAMES) {
+      const candidate = join(dir, name);
+      try {
+        if ((await stat(candidate)).isFile()) return candidate;
+      } catch {}
+    }
     try {
-      await readFile(candidate);
-      return candidate;
+      const fallback = (await readdir(dir)).filter((n) => n.endsWith(".jsonl.zstd")).sort().pop();
+      if (fallback) return join(dir, fallback);
     } catch {}
   }
   return null;
@@ -105,10 +113,11 @@ async function readSessionTitle(sessionId) {
   return title;
 }
 
-/** 读取会话日志里、最后一个 turn/end 之后经 next-turn splice 排队的消息。 */
+/** 读取会话日志里、最后一个 turn/end 之后经 next-turn splice 排队的消息。
+ *  日志不存在返回 null（区别于"日志在但没排队项"的空数组，供调用方区分重试）。 */
 async function listInboxQueued(sessionId) {
   const log = await findSessionLog(sessionId);
-  if (!log) return [];
+  if (!log) return null;
   const { stdout } = await execFileAsync("zstd", ["-d", "-c", log], { maxBuffer: 64 * 1024 * 1024 });
   const events = stdout.split("\n").filter(Boolean).map((line) => {
     try { return JSON.parse(line); } catch { return null; }
@@ -220,6 +229,10 @@ export function apply(ctx) {
         }
         try {
           const items = await listInboxQueued(body.sessionId);
+          if (items === null) {
+            send(404, { error: "session log not found" });
+            return;
+          }
           send(200, { items });
         } catch (error) {
           send(500, { error: String(error?.message ?? error) });
