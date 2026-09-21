@@ -39,13 +39,21 @@
 15. **kimi-coding 模型调用**：endpoint `https://api.kimi.com/coding/v1/messages`，anthropic-messages 协议，`authorization: Bearer <access_token>`，模型 id `k3`，思考档 `thinking:{type:"adaptive"} + output_config:{effort:"low"}`（thinkingLevelMap 最低可用档是 low）。**`max_tokens` 别给 64**——adaptive thinking 的思考链也吃这个预算，偶发耗光会导致响应只有 thinking 块没有 text 块（表现为返回空）；512 稳妥。凭据在 `~/.kimi-code/credentials/kimi-code.json`（expires_in 900s，只读不刷新——见 AGENTS.md 约束 #9）。
 16. **CDP 合成事件清不掉 React 控制的 composer**（selectAll/delete/Selection API 都会被 reconcile 回来）；要清空输入框得用 kimi-cu 的 `type_text` 带 `clear:true`（真实按键）。`/compact` 指令菜单同理：`button[role="option"]` 用合成 click 可以点中，但文本残留时菜单不弹——先清干净。
 
-## 当前状态（2026-09-21，第四轮：特效迭代为像素海水）
+17. **侧栏行会被 React 整个换掉**（运行状态/时间标签/标题变化都触发重渲染）：附着在行上的 canvas/样式会随旧元素失联。特效类功能要每帧重新找行、重新挂靠、重新垫高/补模糊，并容忍行短暂缺失（~800ms）——别假设拿到的行元素是稳定的。另外**后台窗口 setTimeout 会节流到 ~1s**，基于 DOM 采样的测试观测会失真，验证特效要让窗口在前台。
+18. **rename 的兜底链**：新会话的 `ctx.sessions.binding(id).session` 偶发未就绪（binding 有了 session 还没挂上），且 dsh 自己的 provider 自动标题（`kind:"provider"`）也在抢写。auto-title 的 rename 要"特效内重试（4×700ms）+ 特效后检查标题文本未变则直接补改（6×1s）"双保险，否则标题偶发落空。
 
-- 海浪特效按用户反馈重做：**深海配色 + 右端灌入/左端排出 + 水垫在标题文字下**（洗掉附着露出标题，不挡字）；像素格固定 2px 对齐 StateDot，配色抄活体 StateDot 深蓝（泡沫本色、水体 ×0.22 档、水底 ×0.12 档）。CDP 帧捕获验证：右贴→注满→左贴，标题在注满时清晰可读。
-- 验证时踩到的点：`autotitle.json` 重置为空后，老会话日志里的插件标题（user kind）会被钉住保护当成用户标题跳过——属预期行为，验证要开新会话；`Page.captureScreenshot` 在页面繁忙时会挂，帧捕获走 canvas `toDataURL` 更稳。
-- 第三轮 auto-title 功能本体未动，本轮回归通过（新会话首消息标题正常）。
-- `branches.json` 2 条真实记录未动；`autotitle.json` 已重置为空。
+## 当前状态（2026-09-21，第五轮：特效定稿为像素微光）
+
+- 特效按用户反馈定稿：**透明像素格底纹 + 暗蓝微光右→左闪过 + 光到之处格子温和凸起（人浪收敛版）+ 标题模糊→清晰换题**（rename 编排进特效时序）。帧捕获确认光带右→左移动、凸起、渐隐；换题编排实测（旧题模糊时 rename、新题落定后清晰）。
+- 关键教训写成硬知识 #17-#18（React 换行要每帧重挂；rename 双保险兜底链）。
+- 功能本体（首消息/compact 触发、守卫、宿主路由）经多轮回归稳定；用户已在真实使用（自述"该出的标题都出了"，且真实分支记录 +1）。
+- `branches.json` 3 条**真实**记录（用户自己在用 edit-resend，勿动）；`autotitle.json` 只留用户两条（自我介绍请求、助手自我介绍）。
 - 桌面版最后以无调试参数的干净方式重启。
+
+## 历史快照（2026-09-21，第四轮：特效迭代为像素海水）
+
+- 海浪特效按用户反馈重做：深海配色 + 右端灌入/左端排出 + 水垫在标题文字下（洗掉附着露出标题，不挡字）；像素格固定 2px 对齐 StateDot，配色抄活体 StateDot 深蓝（泡沫本色、水体 ×0.22 档、水底 ×0.12 档）。CDP 帧捕获验证：右贴→注满→左贴，标题在注满时清晰可读。（第五轮已被像素微光方案取代）
+- 验证时踩到的点：`autotitle.json` 重置为空后，老会话日志里的插件标题（user kind）会被钉住保护当成用户标题跳过——属预期行为，验证要开新会话；`Page.captureScreenshot` 在页面繁忙时会挂，帧捕获走 canvas `toDataURL` 更稳。
 
 ## 历史快照（2026-09-20，第三轮：auto-title 上线）
 

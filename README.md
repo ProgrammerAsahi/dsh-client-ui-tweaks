@@ -21,7 +21,7 @@ dsh 界面微调合集插件（本地自研，不走插件市场）。目前包�
 
 - 新会话发出首条消息后：Kimi K3（最低思考档 `effort: "low"`）把消息总结成 ≤15 字标题写入会话；prompt 独立成文件 `prompts/title.txt`，改文案不用动代码
 - 多消息会话在 compact 完成时（手动 `/compact` 或上下文满了自动压缩）：取日志里 `compaction/summary`（dsh 自己生成的压缩前对话总结）提炼成新标题
-- 标题落定瞬间，侧栏对应行会灌进一波像素海水：深海蓝从右端灌入、短暂注满、再从左端倒出；2px 像素格与 StateDot 一致，配色抄活体 StateDot 深蓝（泡沫用本色、水体压成深海色，主题换色跟随）；canvas 垫在标题文字下面——水不挡字，冲过去就是"洗掉附着、露出标题"；setTimeout 链驱动，窗口隐藏也能播
+- 标题落定瞬间，侧栏对应行播放像素微光特效：透明像素格底纹浮现 → 一道暗蓝微光从右向左快速闪过（温和偏暗）→ 光到之处像素格温和凸起（体育馆人浪收敛版，最多 2px，带暗影）、走远落回 → 格子渐隐；光扫到标题中段时旧标题模糊、新标题落定后转清晰（rename 编排进特效里）；配色抄活体 StateDot 深蓝（rgb(86,134,254)），主题换色跟随；canvas 垫在标题文字下面；setTimeout 链驱动，窗口隐藏也能播
 - 不碰的会话：用户手动改过名的（`session/title` 事件 `source.kind:"user"` 且与插件记录不符 → 永久跳过）；分支家族（标题由 edit-resend 统一）；超过 10 分钟的旧消息/超过 3 分钟的旧压缩（挡快照异步加载与懒渲染的误触发）
 - 令牌纪律：只读 `~/.kimi-code/credentials/kimi-code.json`（Kimi Code 订阅 OAuth），过期即跳过本次，**绝不自己 refresh**（refresh 会轮换 refresh_token，和 harness/CLI 抢写会顶掉登录）；触发瞬间 harness 自己正在调模型，令牌天然新鲜
 - 宿主路由 `POST /auto-title`：`{sessionId, kind:"first"|"compact", text?}` → `{title}` / `{skip:原因}`；skip 全静默，不留错误 UI
