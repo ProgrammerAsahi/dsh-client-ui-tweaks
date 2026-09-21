@@ -39,7 +39,15 @@
 15. **kimi-coding 模型调用**：endpoint `https://api.kimi.com/coding/v1/messages`，anthropic-messages 协议，`authorization: Bearer <access_token>`，模型 id `k3`，思考档 `thinking:{type:"adaptive"} + output_config:{effort:"low"}`（thinkingLevelMap 最低可用档是 low）。**`max_tokens` 别给 64**——adaptive thinking 的思考链也吃这个预算，偶发耗光会导致响应只有 thinking 块没有 text 块（表现为返回空）；512 稳妥。凭据在 `~/.kimi-code/credentials/kimi-code.json`（expires_in 900s，只读不刷新——见 AGENTS.md 约束 #9）。
 16. **CDP 合成事件清不掉 React 控制的 composer**（selectAll/delete/Selection API 都会被 reconcile 回来）；要清空输入框得用 kimi-cu 的 `type_text` 带 `clear:true`（真实按键）。`/compact` 指令菜单同理：`button[role="option"]` 用合成 click 可以点中，但文本残留时菜单不弹——先清干净。
 
-## 当前状态（2026-09-20，第三轮：auto-title 上线）
+## 当前状态（2026-09-21，第四轮：特效迭代为像素海水）
+
+- 海浪特效按用户反馈重做：**深海配色 + 右端灌入/左端排出 + 水垫在标题文字下**（洗掉附着露出标题，不挡字）；像素格固定 2px 对齐 StateDot，配色抄活体 StateDot 深蓝（泡沫本色、水体 ×0.22 档、水底 ×0.12 档）。CDP 帧捕获验证：右贴→注满→左贴，标题在注满时清晰可读。
+- 验证时踩到的点：`autotitle.json` 重置为空后，老会话日志里的插件标题（user kind）会被钉住保护当成用户标题跳过——属预期行为，验证要开新会话；`Page.captureScreenshot` 在页面繁忙时会挂，帧捕获走 canvas `toDataURL` 更稳。
+- 第三轮 auto-title 功能本体未动，本轮回归通过（新会话首消息标题正常）。
+- `branches.json` 2 条真实记录未动；`autotitle.json` 已重置为空。
+- 桌面版最后以无调试参数的干净方式重启。
+
+## 历史快照（2026-09-20，第三轮：auto-title 上线）
 
 - 新功能**自动总结标题 + 像素海浪**全链路实测通过（CDP + 一次性会话，均已删净）：
   - 首条消息 → K3 总结标题（"给我三个提高工作效率的小技巧" → "提高生产力的三个技巧"）+ 海浪 ✓
