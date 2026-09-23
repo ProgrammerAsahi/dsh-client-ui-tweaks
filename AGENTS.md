@@ -27,7 +27,7 @@ dsh 界面微调合集插件（本地自研，cordis 包，不走插件市场）
 6. **窗口 hidden 时 rAF 不触发**——任何 MutationObserver → 渲染的调度必须有 `setTimeout` 兜底。
 7. **订阅优先于轮询**：`uiSession.adapter.current.subscribe`、`sessions.list.subscribe`，用完在 `ctx.effect` 里 unsubscribe。
 8. 宿主端读日志用**流式扫描**（长会话解压后几十 MB）；`zstd` CLI 依赖 `/opt/homebrew/bin/zstd`。
-9. **kimi-coding OAuth 凭据只读**：`~/.kimi-code/credentials/kimi-code.json` 的 access_token 直接用，过期就跳过本次调用，**绝不自己 refresh/写回**（refresh 会轮换 refresh_token，和 harness/CLI 抢写会顶掉登录）。触发时机天然保新鲜（用户发消息/compact 时 harness 自己就在调模型）。
+9. **kimi-coding OAuth 凭据只读**：`~/.kimi-code/credentials/kimi-code.json` 的 access_token 直接用，过期就跳过本次调用，**绝不自己 refresh/写回**（refresh 会轮换 refresh_token，和 harness/CLI 抢写会顶掉登录）。注意（2026-09-23 修正）："触发时天然保新鲜"的旧前提已失效——mimo-migration 后 dsh 不再刷这份凭据，令牌只在 Kimi Code 自己活跃时才新鲜（~15 分钟）；出题必须有非 OAuth 的退化档（见 HANDOFF #20），过期静默降级、绝不报错。
 10. **用户手动标题不可覆盖**：`session/title` 事件 `source.kind:"user"` = 钉住；插件自己 rename 的也是 user kind，所以要靠 `autotitle.json` 比对区分"用户改的"和"我们写的"。
 
 ## 代码风格

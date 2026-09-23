@@ -42,6 +42,20 @@
 17. **侧栏行会被 React 整个换掉**（运行状态/时间标签/标题变化都触发重渲染）：附着在行上的 canvas/样式会随旧元素失联。特效类功能要每帧重新找行、重新挂靠、重新垫高/补模糊，并容忍行短暂缺失（~800ms）——别假设拿到的行元素是稳定的。另外**后台窗口 setTimeout 会节流到 ~1s**，基于 DOM 采样的测试观测会失真，验证特效要让窗口在前台。
 18. **rename 的兜底链**：新会话的 `ctx.sessions.binding(id).session` 偶发未就绪（binding 有了 session 还没挂上），且 dsh 自己的 provider 自动标题（`kind:"provider"`）也在抢写。auto-title 的 rename 要"特效内重试（4×700ms）+ 特效后检查标题文本未变则直接补改（6×1s）"双保险，否则标题偶发落空。
 
+19. **特效首帧自杀 bug（2026-09-23 修）**：`playTitleEffect` 的 master 包络 `Math.min(1, t/100)` 在 t=0 恰好为 0，被 `if (master <= 0)` 误判成"动画已结束"→ 首帧即 `canvas.remove()`，特效一帧都没播过。v3 重写时引入；当时验证走的是 `__previewFx` 调试钩子，真实触发路径从未跑通。修法：终止只看时间（`t > SWEEP+FADE`），包络抬成 `(t+FRAME)/100`。教训：**带淡入包络的动画，包络零点不能复用为终止条件**。
+
+20. **kimi OAuth 的"天然新鲜"前提已失效（2026-09-22 mimo-migration）**：约束 #9 写的"用户发消息时 harness 自己就在调模型所以令牌新鲜"，前提是 `agent-default-model = kimi-coding/k3`（harness 调模型即刷 OAuth 文件）。9-22 换成 `xiaomi-token-plan-cn/mimo-v2.6-pro` 后 dsh 不再碰 kimi 凭据，令牌只在 Kimi Code 自己用时才刷新（15 分钟过期）→ auto-title 按旧设计会经常静默跳过。修法：出题走三档链（K3 新鲜才走 → MiMo-Flash → DeepSeek-Flash，后两档走 harness `llm` 服务，同通道同鉴权）。**验证凭据类"天然成立"的假设前，先确认刷凭据的那个进程真的在跑**。
+
+21. **首条消息标题的归属（2026-09-23 定）**：dsh 内置 `session-title-first-prompt-llm`（`session/title` kind=provider，经 `ctx.sessionTitle.register` 注册，automatic=first-prompt）已在给首条消息写标题——用户拍板"直接用 dsh 的，我们自己就不做了"。我们的 `/auto-title` kind=first 只做三件事：等它落定（`since` 新鲜窗口防旧会话误触发）→ 收养进 `autotitle.json`（区分"我们认可的标题"与"用户手改"，防止显示兜底的 rename 写 kind=user 后被 compact 误判成钉住）→ 回报真值播特效。内置只有 first-prompt 档、没有 compact 档，compact 重标题仍是我们独有。
+
+## 当前状态（2026-09-23，第六轮：特效修复 + 标题归属让位内置）
+
+- 用户报"自动标题在起效但特效从不播出"。诊断出三层：①特效首帧自杀（#19）；②auto-title 链路自 9-22 起静默死亡（#20，autotitle.json 零写入为证）；③用户看到的"自动标题"其实是 dsh 内置 provider 写的（#21，title 事件 kind=provider/model=mimo-v2.6-pro），与我们的 K3 链路无关。
+- 按用户拍板重做：首条标题全权让给内置（不生成不抢写，只保证显示 + 播特效）；compact 保留为插件独有，走三档链（K3-low → MiMo-V2.6-Flash → DeepSeek-V4.1-Flash）；特效双编排（我方写题=旧糊→扫光换题→新清；内置写题=新题糊→扫光→转清晰）。
+- CDP 实测全绿：首条（内置落定 + 特效 10 帧渐隐 + 零糊残留 + autotitle 收养）→ compact（三档链实测落在 MiMo-Flash 档 + full 编排 + rename 落成）→ 手动改名后 compact（`skip:user-pinned` 10ms 拒绝、不播不覆盖）→ edit-resend 四项回归（fork/箭头 ‹2/2›/家族单行/无重放）→ 路由 200/404/405/400。
+- 测试会话（用户手动改名测试 父+fork 子）已 UI 原生删除 + 磁盘空壳清净；autotitle.json 回到用户 2 条、branches.json 回到 3 条真实记录。
+- 桌面版带 CDP 留观中（本轮验证用）；最终以无调试参数干净重启。
+
 ## 当前状态（2026-09-21，第五轮：特效定稿为像素微光）
 
 - 特效按用户反馈定稿：**透明像素格底纹 + 暗蓝微光右→左闪过 + 光到之处格子温和凸起（人浪收敛版）+ 标题模糊→清晰换题**（rename 编排进特效时序）。帧捕获确认光带右→左移动、凸起、渐隐；换题编排实测（旧题模糊时 rename、新题落定后清晰）。

@@ -9,6 +9,7 @@
  *    排队的消息（供客户端在 open 之前移除，防止继承队列导致的原问题重放/重答）。
  */
 import { readFile, writeFile, mkdir, readdir, stat } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { homedir } from "node:os";
@@ -18,7 +19,7 @@ import { promisify } from "node:util";
 /** Stable Cordis plugin name. */
 export const name = "dsh-client-ui-tweaks";
 /** Services required before the JSON route can be mounted. */
-export const inject = ["webServer"];
+export const inject = ["webServer", "llm"];
 
 const execFileAsync = promisify(execFile);
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)));
@@ -172,7 +173,7 @@ async function readTitlePrompt() {
   }
 }
 
-/** 最后一条 session/title 事件的 {title, kind}（kind: fallback|provider|user，user=钉住）。流式扫描。 */
+/** 最后一条 session/title 事件的 {title, kind, time}（kind: fallback|provider|user，user=钉住）。流式扫描。 */
 async function readSessionTitleFull(sessionId) {
   const log = await findSessionLog(sessionId);
   if (!log) return undefined;
@@ -185,7 +186,7 @@ async function readSessionTitleFull(sessionId) {
       try {
         const event = JSON.parse(line);
         if (event?.type === "session/title" && typeof event?.data?.title === "string") {
-          last = { title: event.data.title, kind: event?.data?.source?.kind };
+          last = { title: event.data.title, kind: event?.data?.source?.kind, time: event?.time };
         }
       } catch {}
     };
@@ -253,25 +254,6 @@ async function waitCompactionSummary(sessionId, timeoutMs = 15000) {
   return null;
 }
 
-/** 等首条 user/message flush 进日志，并确认"真·首条"：日志里恰好 1 条用户消息且发生在 10 分钟内。
- *  打开旧会话时客户端快照异步加载也会出现 0→1 假象，靠这里挡住。 */
-async function waitFirstUserMessage(sessionId, timeoutMs = 8000) {
-  const deadline = Date.now() + timeoutMs;
-  while (Date.now() < deadline) {
-    const events = await loadSessionEvents(sessionId);
-    if (events) {
-      const userMsgs = events.filter((e) => e?.type === "user/message" && e?.data?.source?.kind === "user");
-      if (userMsgs.length > 0) {
-        const firstTime = userMsgs[0]?.time;
-        const fresh = typeof firstTime === "number" && Date.now() - firstTime <= 10 * 60 * 1000;
-        return userMsgs.length === 1 && fresh;
-      }
-    }
-    await new Promise((resolve) => setTimeout(resolve, 400));
-  }
-  return false;
-}
-
 function sanitizeTitle(raw) {
   if (typeof raw !== "string") return "";
   let t = raw.split("\n").map((l) => l.trim()).find(Boolean) ?? "";
@@ -281,7 +263,8 @@ function sanitizeTitle(raw) {
 
 /** 调 Kimi K3（最低思考档 low）生成标题。凭据只读：过期直接放弃，绝不 refresh——
  *  refresh 会轮换 refresh_token，和 harness/CLI 抢写会顶掉登录。
- *  触发时机天然保新鲜：用户发消息/跑 compact 时 harness 自己就在调模型。 */
+ *  注意：kimi OAuth 只有 Kimi Code 自己在用时才会刷新（mimo-migration 后 dsh 不再碰它），
+ *  所以它只是三档链里"新鲜才走"的首选，不再是唯一通道。 */
 async function kimiTitle(material) {
   const cred = JSON.parse(await readFile(KIMI_CREDENTIALS_FILE, "utf8"));
   const token = cred?.access_token;
@@ -312,6 +295,68 @@ async function kimiTitle(material) {
   const body = await res.json();
   const text = (body?.content ?? []).filter((b) => b?.type === "text").map((b) => b.text).join("");
   return sanitizeTitle(text);
+}
+
+/** 经 harness `llm` 服务出标题（与 dsh 内置标题同通道同鉴权）。
+ *  不 import dsh-llm 的 createUserMessage/BlockAssembler——本包 node_modules 解析不到它们；
+ *  消息就是纯对象，流里只取 text-delta 拼接即可（标题只需要文本）。 */
+async function llmTitle(ctx, sessionId, provider, model, material) {
+  const prompt = await readTitlePrompt();
+  const options = {
+    provider,
+    model,
+    sessionId,
+    system: prompt,
+    messages: [{
+      id: randomUUID(),
+      role: "user",
+      content: [{ type: "text", text: material }],
+      source: { kind: "plugin", plugin: "dsh-client-ui-tweaks" },
+    }],
+    maxTokens: 256,
+    purpose: "session-title",
+    signal: AbortSignal.timeout(20_000),
+  };
+  const call = async (opts) => {
+    let text = "";
+    let finish;
+    for await (const chunk of ctx.llm.stream(opts)) {
+      if (chunk?.type === "text-delta" && typeof chunk.text === "string") text += chunk.text;
+      else if (chunk?.type === "finish") finish = chunk;
+    }
+    const title = sanitizeTitle(text);
+    if (title) return title;
+    if (finish?.reason?.kind === "error" || finish?.reason?.kind === "aborted") {
+      throw new Error(`llm ${finish.reason.kind}: ${finish.reason.failure?.message ?? ""}`.trim());
+    }
+    return "";
+  };
+  try {
+    return await call({ ...options, reasoningEffort: "off" });
+  } catch (error) {
+    // 部分模型不支持显式 effort（会抛 UNSUPPORTED_REASONING_EFFORT）→ 去掉再试一次，仍失败则换档
+    if (!/reasoning effort/i.test(String(error?.message ?? error))) throw error;
+    return await call(options);
+  }
+}
+
+/** 三档出题链（2026-09-23 定）：K3-low（OAuth 新鲜才走）→ MiMo-V2.6-Flash → DeepSeek-V4.1-Flash。 */
+const TITLE_CHAIN = [
+  { kind: "kimi" },
+  { kind: "llm", provider: "xiaomi-token-plan-cn", model: "mimo-v2.6-flash" },
+  { kind: "llm", provider: "deepseek-official", model: "deepseek-flash" },
+];
+
+async function generateTitle(ctx, sessionId, material) {
+  for (const tier of TITLE_CHAIN) {
+    try {
+      const title = tier.kind === "kimi"
+        ? await kimiTitle(material)
+        : await llmTitle(ctx, sessionId, tier.provider, tier.model, material);
+      if (title) return { title, via: tier.kind === "kimi" ? "k3-low" : `${tier.provider}/${tier.model}` };
+    } catch {}
+  }
+  return null;
 }
 
 const autoTitleInFlight = new Set();
@@ -449,9 +494,10 @@ export function apply(ctx) {
         }
         autoTitleInFlight.add(dedupKey);
         try {
-          // 钉住保护：最后一条 title 事件是 user 写的且不是我们写的 → 用户手动改过，不碰
+          // 钉住保护：最后一条 title 事件是用户手写的（kind=user 且与我们记录不符）→ 永久不碰
           const [current, titles] = await Promise.all([readSessionTitleFull(sessionId), readAutotitles()]);
-          if (current?.kind === "user" && titles[sessionId]?.title !== current.title) {
+          const isUserPinned = (full) => full?.kind === "user" && titles[sessionId]?.title !== full.title;
+          if (isUserPinned(current)) {
             send(200, { skip: "user-pinned" });
             return;
           }
@@ -461,33 +507,59 @@ export function apply(ctx) {
             send(200, { skip: "branch-family" });
             return;
           }
-          let material = "";
+
           if (kind === "first") {
-            material = typeof body?.text === "string" ? body.text.trim() : "";
-            // 确认真·首条（恰好 1 条用户消息且 10 分钟内）：挡掉打开旧会话的快照加载假象
-            if (material && !(await waitFirstUserMessage(sessionId))) {
-              send(200, { skip: "not-first" });
-              return;
+            // 首条标题全权交给 dsh 内置 session-title-first-prompt-llm（2026-09-23 定，我们不自己生成）：
+            // 只等它把非 fallback 的 session/title 写落定，把真值回报给客户端播特效/显示兜底。
+            // since = 客户端 0→1 触发时刻：只认这个窗口里落定的标题；旧会话的旧标题判过期不碰（防误触发）。
+            const since = typeof body?.since === "number" ? body.since : Date.now();
+            const deadline = Date.now() + 20_000;
+            for (;;) {
+              const full = await readSessionTitleFull(sessionId);
+              const seen = typeof full?.time === "number" && full.time >= since - 5_000;
+              if (full?.title && !seen) {
+                send(200, { skip: "stale-title" });
+                return;
+              }
+              if (seen && full?.kind && full.kind !== "fallback") {
+                if (isUserPinned(full)) {
+                  send(200, { skip: "user-pinned" });
+                  return;
+                }
+                // 收养内置标题记进 autotitle.json：显示卡壳兜底的 rename（写 kind=user 钉住）
+                // 不会被后续 compact 误判成"用户手改"而跳过
+                if (titles[sessionId]?.title !== full.title) {
+                  await writeAutotitles({ ...titles, [sessionId]: { title: full.title, at: Date.now() } });
+                }
+                send(200, { title: full.title, kind: full.kind, source: "builtin" });
+                return;
+              }
+              if (Date.now() >= deadline) break;
+              await new Promise((r) => setTimeout(r, 400));
             }
-          } else {
-            material = (await waitCompactionSummary(sessionId)) ?? "";
+            // 20s 内内置没落定（被关/LLM 故障）：按"我们自己就不做了"的拍板不兜底生成，静默跳过
+            send(200, { skip: "no-title" });
+            return;
           }
+
+          // kind === "compact"：dsh 内置只有 first-prompt 档，compact 重标题仍是我们独有
+          let material = (await waitCompactionSummary(sessionId)) ?? "";
           if (!material) {
             send(200, { skip: "no-material" });
             return;
           }
           if (material.length > 12000) material = `${material.slice(0, 6000)}\n…\n${material.slice(-6000)}`;
-          const title = await kimiTitle(material);
-          if (!title) {
-            send(200, { skip: "empty" });
+          const generated = await generateTitle(ctx, sessionId, material);
+          if (!generated?.title) {
+            send(200, { skip: "chain-exhausted" });
             return;
           }
-          await writeAutotitles({ ...titles, [sessionId]: { title, at: Date.now() } });
-          send(200, { title });
+          await writeAutotitles({ ...titles, [sessionId]: { title: generated.title, at: Date.now() } });
+          send(200, { title: generated.title, source: "ours", via: generated.via });
         } catch (error) {
           const message = String(error?.message ?? error);
-          // 令牌缺失/不新鲜 = 环境性跳过（等 harness 自己刷新后下次触发自愈），不算错误
-          if (/token/i.test(message)) {
+          // 环境性失败一律静默跳过（skip 全静默，不留错误 UI）
+          if (/token|credential|api key/i.test(message)) {
             send(200, { skip: message });
           } else {
             send(500, { error: message });

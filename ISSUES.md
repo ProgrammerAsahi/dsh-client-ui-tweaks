@@ -4,6 +4,8 @@
 
 ## 待修复
 
+（无——2026-09-23 复查：特效不出/标题链路失效问题已在第六轮修复，见已修复区）
+
 ### 1. 侧栏行映射的残余碰撞面（低优先级，2026-09-20 已缓解）
 
 - 位置：`lib/client.js` `syncBranchRows` / `sessionRowsByKey`。
@@ -13,6 +15,10 @@
 - 注意：行 key 的分隔符是不可见字符 `\001`（Read 工具显示为空格）——编辑 key 构造行时别把它改成普通空格，两端必须一致。
 
 ## 已修复
+
+- ~~像素微光特效从不播出~~ → 2026-09-23：根因 `playTitleEffect` 首帧自杀——master 包络 `Math.min(1,t/100)` 在 t=0 为 0 被当成"动画已结束"，首帧即 `canvas.remove()`。终止改按时间（`t > SWEEP+FADE`）、包络抬成 `(t+FRAME)/100`；blur 清理补 finally + 硬超时双兜底。CDP 帧采样确认 10 帧完整播出渐隐。
+- ~~auto-title 链路静默死亡（9-22 起零产出）~~ → 2026-09-23：kimi OAuth 在 mimo-migration 后无人刷新、15 分钟即过期，旧设计只认 K3 直连 → 一直 `token-stale` 静默跳过。出题改三档链：K3-low（新鲜才走）→ MiMo-V2.6-Flash → DeepSeek-V4.1-Flash（走 harness `llm` 服务）；实测 K3 过期时 MiMo-Flash 无缝接棒。
+- ~~首条消息标题归属混乱（与 dsh 内置抢写/双写）~~ → 2026-09-23：首条标题全权让给内置 `session-title-first-prompt-llm`（用户拍板），插件只等落定、收养进 autotitle.json、播特效 + 显示兜底 rename；compact 重标题仍为插件独有。
 
 - ~~`sendEdited` 早退不释放全局锁~~ → 2026-09-20：`seq` 非数字的早退分支补齐 `clearOptimistic(row)` + `sendInFlight = false`，与同类失败分支一致。
 - ~~`findSessionLog` 只认 `session.v3.jsonl.zstd`~~ → 2026-09-20：候选名 v3 + v0 旧名，再兜底目录内最新 `.jsonl.zstd`；日志缺失时 `/edit-resend-inbox` 返回 404（区别于"没排队项"的 200 空数组）；客户端 404 重试、200 空即停（无继承项时省掉 2s 轮询）。
