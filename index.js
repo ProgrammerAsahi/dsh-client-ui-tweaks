@@ -513,10 +513,13 @@ export function apply(ctx) {
             // 只等它把非 fallback 的 session/title 写落定，把真值回报给客户端播特效/显示兜底。
             // since = 客户端 0→1 触发时刻：只认这个窗口里落定的标题；旧会话的旧标题判过期不碰（防误触发）。
             const since = typeof body?.since === "number" ? body.since : Date.now();
-            const deadline = Date.now() + 20_000;
+            // 内置 LLM 自身 timeoutMs=60s：窗口必须盖满它，否则我们先超时、标题稍后才落定就白等一轮
+            const deadline = Date.now() + 65_000;
             for (;;) {
               const full = await readSessionTitleFull(sessionId);
-              const seen = typeof full?.time === "number" && full.time >= since - 5_000;
+              // 30s 新鲜窗：binding 未就绪可使客户端触发晚到 ~10s（HANDOFF #18 同族竞态），
+              // 5s 窗会把刚落定的自家标题误判 stale；旧会话误触发的标题通常是分钟/天级旧，30s 照样挡得住
+              const seen = typeof full?.time === "number" && full.time >= since - 30_000;
               if (full?.title && !seen) {
                 send(200, { skip: "stale-title" });
                 return;
@@ -537,7 +540,7 @@ export function apply(ctx) {
               if (Date.now() >= deadline) break;
               await new Promise((r) => setTimeout(r, 400));
             }
-            // 20s 内内置没落定（被关/LLM 故障）：按"我们自己就不做了"的拍板不兜底生成，静默跳过
+            // 65s 内内置没落定（被关/LLM 故障）：按"我们自己就不做了"的拍板不兜底生成，静默跳过
             send(200, { skip: "no-title" });
             return;
           }

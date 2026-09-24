@@ -14,6 +14,7 @@ dsh 界面微调合集插件（本地自研，cordis 包，不走插件市场）
 | `branches.json` | 分支族谱数据（用户真实数据，勿删勿重置） | 运行期被宿主端读写 |
 | `autotitle.json` | 插件写过的标题记录（钉住保护比对用，勿删） | 运行期被宿主端读写 |
 | `cordis.patch.yml` | 注册行，与 profile 的 bundles 项配套 | 重启应用 |
+| `~/.dsh/cordis.patch.yml`（机器级，不在源码） | home 层补丁：内置标题生成器 `maxOutputTokens 64→4096`（K3 出题依赖它） | 重启应用 |
 
 `package.json` 的 `name`、`index.js` 的 `export const name`、`lib/client.js` 的 ModuleLoader `id`、`cordis.patch.yml` 的 `name`、profile 注册——五处必须永远保持一致（当前均为 `dsh-client-ui-tweaks`）。
 
@@ -29,6 +30,7 @@ dsh 界面微调合集插件（本地自研，cordis 包，不走插件市场）
 8. 宿主端读日志用**流式扫描**（长会话解压后几十 MB）；`zstd` CLI 依赖 `/opt/homebrew/bin/zstd`。
 9. **kimi-coding OAuth 凭据只读**：`~/.kimi-code/credentials/kimi-code.json` 的 access_token 直接用，过期就跳过本次调用，**绝不自己 refresh/写回**（refresh 会轮换 refresh_token，和 harness/CLI 抢写会顶掉登录）。注意（2026-09-23 修正）："触发时天然保新鲜"的旧前提已失效——mimo-migration 后 dsh 不再刷这份凭据，令牌只在 Kimi Code 自己活跃时才新鲜（~15 分钟）；出题必须有非 OAuth 的退化档（见 HANDOFF #20），过期静默降级、绝不报错。
 10. **用户手动标题不可覆盖**：`session/title` 事件 `source.kind:"user"` = 钉住；插件自己 rename 的也是 user kind，所以要靠 `autotitle.json` 比对区分"用户改的"和"我们写的"。
+11. **loader 补丁的 config 是整替不是合并**（HANDOFF #23）：改内置插件 config 的补丁必须给全全部必填字段（`session-title-llm` 是 5 个），缺一个 = 启动炸；补丁层序里 home 层 `~/.dsh/cordis.patch.yml` 压过一切 bundle 默认，改内置行为走它、别动应用内 dsh-base。
 
 ## 代码风格
 

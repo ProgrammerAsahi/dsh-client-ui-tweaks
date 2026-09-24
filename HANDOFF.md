@@ -50,7 +50,21 @@
 
 22. **特效三层透明度不能全压"鬼影档"**（2026-09-23 调优）：格纹 alpha 0.16、光带峰值 0.18、凸起 2px——每一层单独看都"温和"，叠加起来在暗色侧栏上等于不存在（用户原话"像素这块几乎感觉不到"）。修法：①颗粒对齐 StateDot 的像素语言（**2px 实心块 + 2px 缝**，源码注释原文 "2px pixels on a 10px grid"；之前 3px 块/1px 缝空隙率只有 25%，糊）；②格纹提到 0.34、光柱 0.42 + 芯线 0.62、凸起格 0.3~0.8；③凸起格原位留凹影（先画影再画凸，读作"整块被顶起"）。**验收要量化**：`getImageData` 逐帧统计可见像素数/峰值 alpha/均值 alpha（修前 ~2000px·maxA 46·meanA 40 → 修后 2700px·maxA 243·meanA 100），别只靠肉眼截图。
 
-## 当前状态（2026-09-23，第八轮：光带造型 + 人浪加幅）
+23. **loader 补丁的 config 是整替不是合并**（2026-09-24，dsh 内置标题生成器的 maxOutputTokens 坑）：dsh 内置 `session-title-first-prompt-llm` 的 config 默认 `maxOutputTokens: 64`（原罪现场：dsh-base `cordis.patch.yml:61`）。K3 这类 adaptive-thinking 模型的思考链吃 max_tokens 预算，64 会被耗光 → 响应只剩 thinking 块没有 text 块 → 标题生成失败**被静默吞掉**（`session/title-llm-request` 发出后无任何结果事件）→ K3 会话永远只有 fallback 截断标题。Flash 档思考少，64 够用，所以只有 K3 会话全哑（HANDOFF #15 同款坑，这次是 dsh 自己踩的）。修法：home 级补丁 `~/.dsh/cordis.patch.yml`（软链到 `~/Library/Application Support/dsh-desktop/harness/`）覆盖该 config，`maxOutputTokens: 64 → 4096`。**三个雷**：①`applyEntryPatches` 是逐键 `target[key]=value` 直接赋值（整替），覆盖 config 必须给全 5 个必填字段（`targetWords/targetCjkCharacters/maxInputBytes/maxOutputTokens/timeoutMs`），缺一个 = 插件加载校验不过 = dsh 启动炸（fail-loud）；②`name` 字段是安全校验（名字对不上只 warn 跳过，不会坏 boot）；③补丁层序：bundle patches（按 bundles 顺序）→ profile 自身 → **home 层 `$DSH_HOME/cordis.patch.yml`（最后，压过一切）** → `--patch`，改内置行为优先用 home 层、别动应用内 dsh-base。实测：K3 会话 title-llm-request 带 `maxTokens:4096`，provider 标题 3.3s 落定。
+
+## 当前状态（2026-09-24，第九轮：K3 标题根治 + 触发链加固）
+
+- 用户报"Kimi K3 对话下标题/特效全不出"。根因**不在插件**：dsh 内置标题生成器 `session-title-first-prompt-llm` 的 `maxOutputTokens: 64` 被 K3 思考链吃光，标题生成静默失败（详见硬知识 #23）。对比实证：MiMo/DeepSeek-Flash 会话全部 provider 标题落定，2 个 K3 会话只有 fallback；`session/title-llm-request` 发出后无任何结果事件。
+- 修复三件套：
+  1. **home 补丁** `~/.dsh/cordis.patch.yml`：`maxOutputTokens 64→4096`（其余 4 必填字段与 dsh-base 默认一致）。生效必须重启。
+  2. **等待窗口 20s→65s**（`/auto-title` kind=first）：盖满内置自身 `timeoutMs:60s`，否则我们先超时、标题稍后才落定就白等一轮。
+  3. **触发链加固**：stale 新鲜窗 5s→30s（binding 未就绪竞态可让触发晚到 ~10s，5s 窗把刚落定的自家标题误判 stale 秒拒——实测 61ms 返回 skip:stale-title 的正主）；首条 0→1 触发去掉 `if (content)` 空内容门（空内容节点观测把计数 +1 后触发永久丢失）+ `text` 参数管道拆除（素材宿主端从日志取）；特效 draw 加会话切换守卫（mid-sweep 切走就地收尾防画到别家行；binding 瞬断不算切走）。
+- 决定性验证（kimi-coding/k3 路由 + K3 Low）：`maxTokens:4096` 实锤 → `session/title` kind=**provider**「科幻小说推荐」3.3s 落定（真总结非截断）→ 特效帧捕获 `px:[90,138,255,37]` 光芯色 → autotitle 收养 → 侧栏/标题栏显示 ✓ → 主对话 completed ✓。edit-resend 四项轻回归过（fork/箭头 ‹2/2›→‹1/2›/家族单行/路由 200）。
+- **发现 scnet/Kimi-K3 路由账号过期**：`403 "Token Plan subscription is expired"`，主对话与标题请求同拒（FORBIDDEN）。这是用户侧订阅问题不是插件 bug；同名模型的 kimi-coding/k3 路由正常。模型列表里有 3 个「Kimi K3」入口，路由 provider 不同。
+- 测试会话4 个（家常菜/甜品×2/科幻小说+fork 子）已 UI 原生删除 + 磁盘空壳清净；branches/autotitle 测试条目已清（用户真实数据 3+6 条全保留）。
+- 桌面版最终以无调试参数干净重启。
+
+## 历史快照（2026-09-23，第八轮：光带造型 + 人浪加幅）
 
 - 用户三条：光拓宽、光带用 "/" 斜切造型（比竖棍 `|` 带感）、凸起更明显。按 v3 四点需求的第 2/4 点继续打磨。
 - 光带：竖柱 → **斜切平行四边形**（用户画的 `/     /`，顶右底左）。斜线用**像素阶梯**实现——逐行 `Math.round(偏移/2)*2` 整数步进，硬边不抗锯齿（对齐 StateDot crispEdges 颗粒；平滑斜线会糊掉像素感）。半宽 14→**32px** 软肩（有效亮列 ~7→~34，5 倍拓宽），芯线随斜切走。`LIGHT_SHEAR` 常量取负即翻 `\`，观感逆动势时一键翻。
