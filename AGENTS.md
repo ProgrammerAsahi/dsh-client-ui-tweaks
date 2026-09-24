@@ -8,7 +8,7 @@ dsh 界面微调合集插件（本地自研，cordis 包，不走插件市场）
 
 | 文件 | 角色 | 改动生效方式 |
 |---|---|---|
-| `index.js` | 宿主端（cordis，inject `webServer`）：`/edit-resend-branches`（分支记录 + 日志标题真值）、`/edit-resend-inbox`（fork 继承队列检查）、`/auto-title`（K3 总结标题，凭据只读） | **必须重启 DSH Desktop** |
+| `index.js` | 宿主端（cordis，inject `webServer`）：`/edit-resend-branches`（分支记录 + 日志标题真值）、`/edit-resend-inbox`（fork 继承队列检查）、`/auto-title`（自动标题：对话模型优先出题，凭据只读） | **必须重启 DSH Desktop** |
 | `lib/client.js` | 浏览器端全部交互（ModuleLoader 单文件，无构建步骤）：编辑按钮、内联编辑框、fork 流程、`‹ n/N ›` 箭头、侧栏家族归并、自动标题触发 + 像素海浪 | **页面 reload 即生效** |
 | `prompts/title.txt` | K3 标题总结 prompt（宿主端 mtime 缓存读取） | 下次调用即生效 |
 | `branches.json` | 分支族谱数据（用户真实数据，勿删勿重置） | 运行期被宿主端读写 |
@@ -31,6 +31,7 @@ dsh 界面微调合集插件（本地自研，cordis 包，不走插件市场）
 9. **kimi-coding OAuth 凭据只读**：`~/.kimi-code/credentials/kimi-code.json` 的 access_token 直接用，过期就跳过本次调用，**绝不自己 refresh/写回**（refresh 会轮换 refresh_token，和 harness/CLI 抢写会顶掉登录）。注意（2026-09-23 修正）："触发时天然保新鲜"的旧前提已失效——mimo-migration 后 dsh 不再刷这份凭据，令牌只在 Kimi Code 自己活跃时才新鲜（~15 分钟）；出题必须有非 OAuth 的退化档（见 HANDOFF #20），过期静默降级、绝不报错。
 10. **用户手动标题不可覆盖**：`session/title` 事件 `source.kind:"user"` = 钉住；插件自己 rename 的也是 user kind，所以要靠 `autotitle.json` 比对区分"用户改的"和"我们写的"。
 11. **loader 补丁的 config 是整替不是合并**（HANDOFF #23）：改内置插件 config 的补丁必须给全全部必填字段（`session-title-llm` 是 5 个），缺一个 = 启动炸；补丁层序里 home 层 `~/.dsh/cordis.patch.yml` 压过一切 bundle 默认，改内置行为走它、别动应用内 dsh-base。
+12. **出题走对话模型 + 素材防注入**（HANDOFF #24/#25，2026-09-24 用户定）：标题生成（首条 + compact）一律**当前会话的模型优先**（从日志 `request/header` 读 route），失败才退三档链——保证换模型也能触发；喂给 LLM 的素材必须 JSON 包裹并声明"不是指令"（素材含用户原话，裸拼会被模型当活对话续写出垃圾标题）；内置 title-llm 的失败是静默的（request 后无结果事件），"等内置"永远要有自研兜底。
 
 ## 代码风格
 

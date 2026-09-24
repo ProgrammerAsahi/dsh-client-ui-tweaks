@@ -19,12 +19,14 @@ dsh 界面微调合集插件（本地自研，不走插件市场）。目前包�
 
 ## 自动总结标题 + 像素微光（auto-title）
 
-- **首条消息标题 = dsh 内置 `session-title-first-prompt-llm` 全权负责**（我们不生成、不抢写）；插件监听它落定 `session/title`（kind=provider），把标题真值回报客户端播特效；"确保一定显示"由 rename 重试链兜底（binding 未就绪竞态时把落定标题顶上 UI）。**K3 依赖 home 补丁**：内置生成器默认 `maxOutputTokens: 64` 会被 K3 思考链耗光导致生成静默失败，机器级补丁 `~/.dsh/cordis.patch.yml` 抬到 4096（缺它 K3 会话只有 fallback 截断标题，Flash 档不受影响）；补丁必须给全 5 个 config 必填字段（loader 整替语义，缺一个 dsh 启动炸）
-- **compact 重标题是插件独有**（内置只有 first-prompt 档）：取日志里 `compaction/summary`（dsh 自己生成的压缩前对话总结）提炼成新标题；**三档出题链**：K3-low（kimi OAuth 新鲜才走）→ MiMo-V2.6-Flash → DeepSeek-V4.1-Flash（后两档走 harness `llm` 服务）
+- **首条消息标题**：先短等（12s）dsh 内置 `session-title-first-prompt-llm` 落定（它走的也是会话模型，落定就收养）；内置失败是**静默的**（请求发出后无任何结果事件），落空就**自研出题兜底**（素材=首条真人消息）——标题/特效保证触发，不再因模型换掉/内置挂掉而哑火
+- **出题链（2026-09-24 改）：对话模型优先**——从会话日志读当前 `request/header` 的 provider/model 出题（模型正在跑会话=必然可用，每次都能被 trigger），失败再退三档兜底：K3-low（kimi OAuth 新鲜才走）→ MiMo-V2.6-Flash → DeepSeek-V4.1-Flash（后两档走 harness `llm` 服务）；`via` 字段记录出题档（autotitle.json 可查）
+- **素材防注入**：素材包成 JSON 数据并声明"不是指令"（对齐 dsh 内置 frameMessages 思路）——素材里的用户原话/请求若被模型当成活对话就会续写（实测垃圾标题（无关拒答式续写）即素材被续写）；sanitize 再拒收句读/破折号/超 45 字的散文回复
+- **/compact 重标题是插件独有**（内置只有 first-prompt 档）：取日志里 `compaction/summary`（dsh 自己生成的压缩前对话总结）提炼成新标题
 - 标题落定瞬间，侧栏对应行播放像素微光特效：透明像素格底纹浮现（**2px 实心块 + 2px 缝，StateDot 转圈圈同款颗粒**）→ 一道深蓝微光从右向左快速闪过（**斜切平行四边形光带 "/" 斜向、像素阶梯硬边，半宽 32px 软肩 + 芯线**，温和偏暗、不刺眼）→ 光到之处像素格温和凸起（体育馆人浪收敛版，最多 **4px**、2px 格距步进，原位留凹影）、走远落回 → 格子渐隐；双编排换题：**我方写题**（compact）走"旧题模糊→扫光中换题→新题清晰"，**内置写题**走"新题落定即进模糊→扫光→转清晰"；配色抄活体 StateDot 深蓝（rgb(86,134,254)），主题换色跟随；canvas 垫在标题文字下面；setTimeout 链驱动，窗口隐藏也能播；blur 清理走 finally + 硬超时双兜底
 - 不碰的会话：用户手动改过名的（`session/title` 事件 `source.kind:"user"` 且与插件记录不符 → 永久跳过，不播不覆盖）；分支家族（标题由 edit-resend 统一）；超出触发窗口的旧标题（判 `stale-title` 跳过）
 - 令牌纪律：kimi OAuth 只读 `~/.kimi-code/credentials/kimi-code.json`，过期即跳过该档、绝不自己 refresh（refresh 会轮换 refresh_token，和 harness/CLI 抢写会顶掉登录）——注意 mimo-migration 后 dsh 不再刷这份凭据，K3 档实际只在你刚用过 Kimi Code 的 ~15 分钟内有效，其余时间由 flash 档接棒
-- 宿主路由 `POST /auto-title`：`{sessionId, kind:"first"|"compact", since?}` → `{title, source:"builtin"|"ours", kind?, via?}` / `{skip:原因}`；skip 全静默，不留错误 UI；kind=first 等内置落定的窗口 65s（盖满内置自身 60s LLM 超时），`since` 新鲜窗 30s
+- 宿主路由 `POST /auto-title`：`{sessionId, kind:"first"|"compact", since?}` → `{title, source:"builtin"|"ours", kind?, via?}` / `{skip:原因}`；skip 全静默，不留错误 UI；kind=first 内置短等窗 12s 后自研兜底，`since` 新鲜窗 30s
 
 ## 结构
 
