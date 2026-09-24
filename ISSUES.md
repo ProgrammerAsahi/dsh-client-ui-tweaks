@@ -16,6 +16,8 @@
 
 ## 已修复
 
+- ~~像素感几乎不可见（用户："像素这块几乎感觉不到"）~~ → 2026-09-23：三层透明度全压鬼影档（格纹 0.16/光带 0.18/凸起≤2px）+ 颗粒 3px 块 1px 缝（空隙率 25%）糊掉格纹。改 2px 块/2px 缝（StateDot 同款）、格纹 0.34、光柱 0.42+芯线 0.62、凸起格点亮 0.3~0.8 且原位凹影；量化验收 maxA 46→243、meanA 40→100（详见 HANDOFF #22）。
+
 - ~~像素微光特效从不播出~~ → 2026-09-23：根因 `playTitleEffect` 首帧自杀——master 包络 `Math.min(1,t/100)` 在 t=0 为 0 被当成"动画已结束"，首帧即 `canvas.remove()`。终止改按时间（`t > SWEEP+FADE`）、包络抬成 `(t+FRAME)/100`；blur 清理补 finally + 硬超时双兜底。CDP 帧采样确认 10 帧完整播出渐隐。
 - ~~auto-title 链路静默死亡（9-22 起零产出）~~ → 2026-09-23：kimi OAuth 在 mimo-migration 后无人刷新、15 分钟即过期，旧设计只认 K3 直连 → 一直 `token-stale` 静默跳过。出题改三档链：K3-low（新鲜才走）→ MiMo-V2.6-Flash → DeepSeek-V4.1-Flash（走 harness `llm` 服务）；实测 K3 过期时 MiMo-Flash 无缝接棒。
 - ~~首条消息标题归属混乱（与 dsh 内置抢写/双写）~~ → 2026-09-23：首条标题全权让给内置 `session-title-first-prompt-llm`（用户拍板），插件只等落定、收养进 autotitle.json、播特效 + 显示兜底 rename；compact 重标题仍为插件独有。

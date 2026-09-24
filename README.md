@@ -21,7 +21,7 @@ dsh 界面微调合集插件（本地自研，不走插件市场）。目前包�
 
 - **首条消息标题 = dsh 内置 `session-title-first-prompt-llm` 全权负责**（我们不生成、不抢写）；插件监听它落定 `session/title`（kind=provider），把标题真值回报客户端播特效；"确保一定显示"由 rename 重试链兜底（binding 未就绪竞态时把落定标题顶上 UI）
 - **compact 重标题是插件独有**（内置只有 first-prompt 档）：取日志里 `compaction/summary`（dsh 自己生成的压缩前对话总结）提炼成新标题；**三档出题链**：K3-low（kimi OAuth 新鲜才走）→ MiMo-V2.6-Flash → DeepSeek-V4.1-Flash（后两档走 harness `llm` 服务）
-- 标题落定瞬间，侧栏对应行播放像素微光特效：透明像素格底纹浮现 → 一道暗蓝微光从右向左快速闪过（温和偏暗）→ 光到之处像素格温和凸起（体育馆人浪收敛版，最多 2px，带暗影）、走远落回 → 格子渐隐；双编排换题：**我方写题**（compact）走"旧题模糊→扫光中换题→新题清晰"，**内置写题**走"新题落定即进模糊→扫光→转清晰"；配色抄活体 StateDot 深蓝（rgb(86,134,254)），主题换色跟随；canvas 垫在标题文字下面；setTimeout 链驱动，窗口隐藏也能播；blur 清理走 finally + 硬超时双兜底
+- 标题落定瞬间，侧栏对应行播放像素微光特效：透明像素格底纹浮现（**2px 实心块 + 2px 缝，StateDot 转圈圈同款颗粒**）→ 一道深蓝微光从右向左快速闪过（光柱带芯线，温和偏暗、不刺眼）→ 光到之处像素格温和凸起（体育馆人浪收敛版，最多 2px，原位留凹影）、走远落回 → 格子渐隐；双编排换题：**我方写题**（compact）走"旧题模糊→扫光中换题→新题清晰"，**内置写题**走"新题落定即进模糊→扫光→转清晰"；配色抄活体 StateDot 深蓝（rgb(86,134,254)），主题换色跟随；canvas 垫在标题文字下面；setTimeout 链驱动，窗口隐藏也能播；blur 清理走 finally + 硬超时双兜底
 - 不碰的会话：用户手动改过名的（`session/title` 事件 `source.kind:"user"` 且与插件记录不符 → 永久跳过，不播不覆盖）；分支家族（标题由 edit-resend 统一）；超出触发窗口的旧标题（判 `stale-title` 跳过）
 - 令牌纪律：kimi OAuth 只读 `~/.kimi-code/credentials/kimi-code.json`，过期即跳过该档、绝不自己 refresh（refresh 会轮换 refresh_token，和 harness/CLI 抢写会顶掉登录）——注意 mimo-migration 后 dsh 不再刷这份凭据，K3 档实际只在你刚用过 Kimi Code 的 ~15 分钟内有效，其余时间由 flash 档接棒
 - 宿主路由 `POST /auto-title`：`{sessionId, kind:"first"|"compact", text?, since?}` → `{title, source:"builtin"|"ours", kind?, via?}` / `{skip:原因}`；skip 全静默，不留错误 UI
