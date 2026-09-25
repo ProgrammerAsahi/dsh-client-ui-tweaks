@@ -15,7 +15,7 @@ dsh 界面微调合集插件（本地自研，不走插件市场）。目前包�
 - 侧栏每个分支家族只保留一行可见：当前打开的成员 > 运行中 > 刚完成 > 最近更新；可见行就是工作现场本身，dsh 原生运行状态点（StateDot ongoing/done）自然出现
 - 分支会话与父会话**同名**（rename 写 `session/title` 并钉住标题），顶部标题与侧栏一致
 - 打开家族会话时自动落到 `updatedAt` 最新的成员（切走再切回 = 回到最近工作过的分支）；箭头切换走旁路
-- 侧栏行通过 (displayTitle, timeLabel(updatedAt)) 对精确映射到会话（复刻 dsh 的相对时间分桶），冷启动标题退化为目录名时也可分
+- 侧栏行↔会话映射走 **React fiber 精确桥**（行元素的 `SessionNodeItem` props 拿 `node.id`，一一对应零碰撞）；fiber 失效时退回 (displayTitle, timeLabel(updatedAt)) 键匹配兜底（复刻 dsh 相对时间分桶）。链式 fork（分支上再分支）按根归并为一家；无主的残留隐藏行自动放开
 
 ## 自动总结标题 + 像素微光（auto-title）
 

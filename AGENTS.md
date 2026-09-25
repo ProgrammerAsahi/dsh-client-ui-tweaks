@@ -23,7 +23,7 @@ dsh 界面微调合集插件（本地自研，cordis 包，不走插件市场）
 1. **fork 锚点**必须是被编辑消息**上一回合的 turn/end 的 seq**（atSeq 语义是"≥锚点的第一个回合结束点"）；首条消息走 `sessions.create({})`。锚错 = 消息重复/重答。
 2. **fork 后、open 前**必须清掉继承的 next-turn 队列消息（`/edit-resend-inbox` + `updateQueue(id, {kind:"remove"})`），否则原问题被重放重答。
 3. **标题真值只信会话日志**的 `session/title` 事件（宿主端流式读取）；`sessions.list` 快照的 `displayTitle` 在会话未打开过时会退化为 cwd 目录名，禁止当标题用。
-4. **DOM 锚点纪律**：禁止完整哈希类名（`.Abc12_xxx` 随构建变化）；用 `role="treeitem"`、aria-label、CSS-module 本地名后缀（`[class*="_title"]`）。侧栏行不带 session id，靠 (displayTitle, timeLabel(updatedAt)) 对映射。
+4. **DOM 锚点纪律**：禁止完整哈希类名（`.Abc12_xxx` 随构建变化）；用 `role="treeitem"`、aria-label、CSS-module 本地名后缀（`[class*="_title"]`）。侧栏行不带 session id，映射走 React fiber 精确桥（前缀发现 `__reactFiber$<构建哈希>`，签名 node.id+onOpen+onRename，绝不写死哈希）；(displayTitle, timeLabel(updatedAt)) 键匹配只作 fiber 失效兜底，key 分隔符 `\001` 两端必须一致（改 key 构造行要二进制级核对）。
 5. **UI 不重复造轮子**：运行状态等用 dsh 原生渲染（StateDot），插件只负责让正确的行可见。
 6. **窗口 hidden 时 rAF 不触发**——任何 MutationObserver → 渲染的调度必须有 `setTimeout` 兜底。
 7. **订阅优先于轮询**：`uiSession.adapter.current.subscribe`、`sessions.list.subscribe`，用完在 `ctx.effect` 里 unsubscribe。

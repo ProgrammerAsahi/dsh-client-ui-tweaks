@@ -56,7 +56,9 @@
 
 25. **内置标题生成器的失败是静默的**（2026-09-24，qwen 会话实测）：`session/title-llm-request` 事件发出后若模型挂/超时/空响应，**没有任何结果事件**——日志里只有请求没有响应就是失败。所以"等内置落定"不能当唯一路径：qwen-local 实测 title-llm-request 发出后无果（本地服务当口正抖，主对话同时刻也 3 次 EMPTY_RESPONSE 重试），我们的旧逻辑干等 65s 后放弃 → 标题/特效全哑。修法：短等内置 12s（正常 3-5s 就落定）→ 落空自研出题兜底。另：`llm` 服务的 `reasoningEffort:"off"` 若被模型静默忽略，思考链照样吃 max_tokens——出题预算要按"可能思考"给（256→4096，与内置补丁同值），别再踩 #23 同款。
 
-## 当前状态（2026-09-24，第十轮：出题链走对话模型 + 素材防注入 + 首条自研兜底）
+26. **侧栏行的 React fiber 能直接给出 session id**（2026-09-25，根治 ISSUES #1）：行 DOM 本身不带 id（ISSUES #1 的碰撞面根源），但行元素挂着 `__reactFiber$<构建哈希>` 属性——**按前缀发现 key（绝不写死哈希）**，沿 `fiber.return` 上溯 ≤12 层，遇到 `props` 同时有 `node.id`（string）+ `onOpen`（function）+ `onRename`（function）的组件就是 `SessionNodeItem`，`props.node.id` 即会话真 id（实测 depth=3，签名唯一：搜索结果行是 `result`+`onOpen`、项目行根本没有 node）。这给出**一一对应的精确映射**，(标题,时间) 键匹配的全部碰撞面在主路径下消失；键匹配保留为 fiber 整体失效时的兜底（React 内部结构大改才触发，退化到 2026-09-20 缓解态，不劣于修复前）。教训：**DOM 表面没有的信息，渲染这行的组件 props 里可能有——先找"这一行是谁的"再对号入座，别在文本匹配上堆启发式**。附带修的两个旧瑕疵：①链式 fork（A→B→C，分支上再分支）旧按直接 parentId 分组会拆成两家（A:B、B:C 两组各藏一次，且 `familyMembersOf` 漏 C）——改按 `rootOf` 归并；②记录删除后残留的 `data-er-hidden` 行永久卡隐藏——`syncBranchRows` 末尾（finally，早退路径也走到）把"本轮没被认领却带隐藏标记"的行放开。
+
+## 历史快照（2026-09-24，第十轮：出题链走对话模型 + 素材防注入 + 首条自研兜底）
 
 - 用户报：本地 Qwen3.8-27B 会话（某工作区、资料检索任务）标题没自动刷新、特效没播；且后来 compact 出了垃圾标题（无关拒答式续写）。定性三案：
   1. **首条哑火**：内置 title-llm 静默失败（#25），旧逻辑"只等内置、落空放弃"→ 无标题无特效；
@@ -70,6 +72,15 @@
 - CDP 实测（DeepSeek-V4-Pro——**不在兜底链**，专证对话模型优先）：首条标题 builtin 收养「计算17乘23」+ 特效 ✓；/compact 重标题「乘法计算请求」via=**对话模型/deepseek-v4-pro** + 特效 ✓。测试会话已删净。
 - qwen 会话（6c427ff5）的垃圾标题仍在（钉住态）：autotitle.json 已补回它的收养记录（git 任务误删过一次），保住了"不是用户手改"的认定——用户对该会话再跑一次 /compact 即可用新管线重出好标题。
 - 附带发现：scnet/Kimi-K3 路由账号过期（403 Token Plan expired，9-24 下午），属用户侧订阅问题。
+
+## 当前状态（2026-09-25，第十一轮：侧栏行映射 React fiber 精确桥）
+
+- 只做 ISSUES 最后一条（#1 侧栏行映射残余碰撞面，用户指定）。定性：行 DOM 不带 session id，旧 (displayTitle, timeLabel) 键匹配在"同 cwd 退化名 + 同时间桶"撞 key 时会误隐藏非家族行；且 displayTitle 本身就有退化陷阱（#4，实测 `session-544e12f0` 行标题就挂着退化名 "工作区目录名"）。
+- 落地（全在 `lib/client.js`，页面 reload 生效）：`sessionIdOfRow` fiber 桥 + `sessionRowsById` 精确映射为主路径，键匹配降为整体兜底（`rowsById.size === 0` 才启用）；家族分组改 `rootOf` 归并（链式 fork 不再拆家，`familyMembersOf` 同步收全后代）；无主隐藏行 finally 自愈放开。
+- CDP 实测：真实两家族（3 成员 + 2 成员）各只 1 行可见、零误隐藏；32 行 fiber 映射 0 失败；一次性测试会话走完整编辑重发回归（fork 落库、箭头 1/2↔2/2 双切、测试家族单行归并、宿主三路由 200，inbox 200 空数组 = 继承队列清除正常）。测试会话/branches.json 测试记录/autotitle.json 测试收养均已删净（用户真实 3 分支 + 9 收养原样）。
+- 开发中真踩了 #12 的雷：Edit 工具静默吞掉 key 里的不可见 `\001` 分隔符，两端失配靠 od 逐字节比对发现并用 perl 写回——**改 key 构造行必须二进制级核对**。
+- 顺带确认：菜单类浮层（会话行"…操作"菜单）portal 在 `[class*="_portal_"]`，删除会话走 菜单"删除会话" → 确认弹窗再点"删除会话"；CDP 合成 click 对插件自挂按钮有效（编辑按钮是 addEventListener，不是 React props），但 dsh 原生按钮（发送消息）的 React onClick 要从 `__reactProps$` 里调（合成鼠标事件不触发）。
+- 未决照旧：scnet/Kimi-K3 403（用户订阅侧）；qwen 6c427ff5 垃圾标题已由用户跑 /compact 自行修正（第十轮遗留第 1 项关闭）。
 
 ## 历史快照（2026-09-24，第九轮：K3 标题根治 + 触发链加固）
 
