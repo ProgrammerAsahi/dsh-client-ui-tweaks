@@ -1,7 +1,28 @@
 {
   "name": "dsh-client-ui-tweaks",
   "version": "0.3.0",
-  "description": "Assorted dsh UI tweaks: edit-and-resend with branch switching, sidebar branch-family grouping, unified branch titles, auto summary titles (Kimi K3) with pixel ocean-wave effect.",
+  "description": "Assorted DSH Desktop UI tweaks: edit-and-resend with branch switching, sidebar branch-family grouping, unified branch titles, and auto summary titles with a pixel shimmer effect.",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek",
+    "desktop",
+    "ui",
+    "plugin",
+    "edit-resend",
+    "session-branching",
+    "auto-title"
+  ],
+  "author": "ProgrammerAsahi",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/ProgrammerAsahi/dsh-client-ui-tweaks.git"
+  },
+  "bugs": {
+    "url": "https://github.com/ProgrammerAsahi/dsh-client-ui-tweaks/issues"
+  },
+  "homepage": "https://github.com/ProgrammerAsahi/dsh-client-ui-tweaks#readme",
   "type": "module",
   "main": "index.js",
   "exports": {
@@ -15,7 +36,8 @@
     "cordis.patch.yml",
     "lib/client.js",
     "prompts/title.txt",
-    "README.md"
+    "README.md",
+    "README.zh.md"
   ],
   "dsh": {
     "bundle": {
@@ -29,6 +51,5 @@
         "@deepseek-ai/dsh-cordis-client-runner"
       ]
     }
-  },
-  "license": "MIT"
+  }
 }
