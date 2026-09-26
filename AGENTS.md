@@ -2,7 +2,7 @@
 
 dsh 界面微调合集插件（本地自研，cordis 包，不走插件市场）。源码即运行时：`~/dsh-plugins/` 下的这份目录通过 `link:` 依赖直接装入 dsh profile，**改这里的文件就是改线上**。
 
-文档分工：本文件 = 工作准则；`README.md` = 当前行为描述；`ISSUES.md` = 待修问题清单（唯一权威）；`HANDOFF.md` = 演进历史与踩坑细节。改了行为就同步更新对应文档。
+文档分工：本文件 = 工作准则；`README.md`/`README.zh.md` = 用户文档（中英配对，改动两边同提交并重记 `README.i18n.yaml` 的 blob hash）；`docs/pitfalls.md` = 硬约束速查；`docs/development.md` = 开发/验证/测试流程；`.agents/notes/archived/` = 冻结的演进史与问题记录（不更新）。改了行为就同步更新用户文档。
 
 ## 文件职责
 
@@ -28,16 +28,16 @@ dsh 界面微调合集插件（本地自研，cordis 包，不走插件市场）
 6. **窗口 hidden 时 rAF 不触发**——任何 MutationObserver → 渲染的调度必须有 `setTimeout` 兜底。
 7. **订阅优先于轮询**：`uiSession.adapter.current.subscribe`、`sessions.list.subscribe`，用完在 `ctx.effect` 里 unsubscribe。
 8. 宿主端读日志用**流式扫描**（长会话解压后几十 MB）；`zstd` CLI 依赖 `/opt/homebrew/bin/zstd`。
-9. **kimi-coding OAuth 凭据只读**：`~/.kimi-code/credentials/kimi-code.json` 的 access_token 直接用，过期就跳过本次调用，**绝不自己 refresh/写回**（refresh 会轮换 refresh_token，和 harness/CLI 抢写会顶掉登录）。注意（2026-09-23 修正）："触发时天然保新鲜"的旧前提已失效——mimo-migration 后 dsh 不再刷这份凭据，令牌只在 Kimi Code 自己活跃时才新鲜（~15 分钟）；出题必须有非 OAuth 的退化档（见 HANDOFF #20），过期静默降级、绝不报错。
+9. **kimi-coding OAuth 凭据只读**：`~/.kimi-code/credentials/kimi-code.json` 的 access_token 直接用，过期就跳过本次调用，**绝不自己 refresh/写回**（refresh 会轮换 refresh_token，和 harness/CLI 抢写会顶掉登录）。注意（2026-09-23 修正）："触发时天然保新鲜"的旧前提已失效——mimo-migration 后 dsh 不再刷这份凭据，令牌只在 Kimi Code 自己活跃时才新鲜（~15 分钟）；出题必须有非 OAuth 的退化档（见 docs/pitfalls.md#title-generation），过期静默降级、绝不报错。
 10. **用户手动标题不可覆盖**：`session/title` 事件 `source.kind:"user"` = 钉住；插件自己 rename 的也是 user kind，所以要靠 `autotitle.json` 比对区分"用户改的"和"我们写的"。
-11. **loader 补丁的 config 是整替不是合并**（HANDOFF #23）：改内置插件 config 的补丁必须给全全部必填字段（`session-title-llm` 是 5 个），缺一个 = 启动炸；补丁层序里 home 层 `~/.dsh/cordis.patch.yml` 压过一切 bundle 默认，改内置行为走它、别动应用内 dsh-base。
-12. **出题走对话模型 + 素材防注入**（HANDOFF #24/#25，2026-09-24 用户定）：标题生成（首条 + compact）一律**当前会话的模型优先**（从日志 `request/header` 读 route），失败才退三档链——保证换模型也能触发；喂给 LLM 的素材必须 JSON 包裹并声明"不是指令"（素材含用户原话，裸拼会被模型当活对话续写出垃圾标题）；内置 title-llm 的失败是静默的（request 后无结果事件），"等内置"永远要有自研兜底。
+11. **loader 补丁的 config 是整替不是合并**（docs/pitfalls.md#loader-patches）：改内置插件 config 的补丁必须给全全部必填字段（`session-title-llm` 是 5 个），缺一个 = 启动炸；补丁层序里 home 层 `~/.dsh/cordis.patch.yml` 压过一切 bundle 默认，改内置行为走它、别动应用内 dsh-base。
+12. **出题走对话模型 + 素材防注入**（docs/pitfalls.md#title-generation，2026-09-24 用户定）：标题生成（首条 + compact）一律**当前会话的模型优先**（从日志 `request/header` 读 route），失败才退三档链——保证换模型也能触发；喂给 LLM 的素材必须 JSON 包裹并声明"不是指令"（素材含用户原话，裸拼会被模型当活对话续写出垃圾标题）；内置 title-llm 的失败是静默的（request 后无结果事件），"等内置"永远要有自研兜底。
 
 ## 代码风格
 
 - 单文件、无构建、无依赖；新功能在 `lib/client.js` 里加独立分区（`// ---- 分区名 ----` 注释分隔），每个分区用独立 try/catch 挂载——坏一个功能不拖垮其他。
 - 宿主端新路由按功能加前缀（如 `/edit-resend-*`），不复用旧前缀干新事。
-- 中英文案走文件顶部的 `zh` 检测 + `t()`；注释用中文、只写"为什么"，不写"做什么"。
+- 中英文案走文件顶部的 `zh` 检测 + `t()`；**注释与 JSDoc 一律英文**（官方 DeepSeek 包规范），只写"为什么"与非显性契约，不写"做什么"；导出函数带 `@param x - desc` / `@returns`（无类型前缀）；空 `catch` 注明被忽略的错误与原因。
 
 ## 测试纪律
 
