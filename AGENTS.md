@@ -2,7 +2,7 @@
 
 dsh 界面微调合集插件（本地自研，cordis 包，不走插件市场）。源码即运行时：`~/dsh-plugins/` 下的这份目录通过 `link:` 依赖直接装入 dsh profile，**改这里的文件就是改线上**。
 
-文档分工：本文件 = 工作准则；`README.md`/`README.zh.md` = 用户文档（中英配对，改动两边同提交并重记 `README.i18n.yaml` 的 blob hash）；`docs/pitfalls.md` = 硬约束速查；`docs/development.md` = 开发/验证/测试流程；`.agents/notes/archived/` = 冻结的演进史与问题记录（不更新）。改了行为就同步更新用户文档。
+文档分工：本文件 = 工作准则；**`docs/standards.md` = 标准与规范唯一出处（每条规则带官方文档/官方包/第三方惯例的来源引用，写代码写文档前先查它）**；`README.md`/`README.zh.md` = 用户文档（中英配对，改动两边同提交并重记 `README.i18n.yaml` 的 blob hash）；`docs/pitfalls.md` = 硬约束速查；`docs/development.md` = 开发/验证/测试流程；`.agents/notes/archived/` = 冻结的演进史与问题记录（不更新）。改了行为就同步更新用户文档。
 
 ## 文件职责
 

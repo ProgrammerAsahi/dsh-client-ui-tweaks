@@ -1,5 +1,7 @@
 # Development
 
+Standards and their sources live in [standards.md](standards.md) — check it before writing code or docs.
+
 ## Source is the runtime
 
 The package is loaded from this checkout through a `link:` dependency — editing files changes the live plugin.

@@ -100,6 +100,7 @@ Host-side log reading is a streaming scan (long sessions decompress to tens of M
 
 - [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — the platform this plugin extends; its `docs/user/develop` tree teaches plugin fundamentals (fibre lifecycle, services, config).
 - [Cordis](https://github.com/cordiverse/cordis) — the plugin framework behind `ctx.effect`, `ctx.get`, and dependency-driven loading.
+- [docs/standards.md](docs/standards.md) — the standards this project follows, each rule traced to its DeepSeek official guide, official package, or third-party convention.
 - [docs/pitfalls.md](docs/pitfalls.md) — hard-won constraints this plugin must respect (fork anchors, title truth, credential discipline).
 - [docs/development.md](docs/development.md) — development, verification, and testing workflow.
 - [CHANGELOG.md](CHANGELOG.md) — release history.

@@ -100,6 +100,7 @@ fork 语义是核心契约。`sessions.fork` 的 `atSeq` 解析为"≥该 seq �
 
 - [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) — 本插件所扩展的平台；其 `docs/user/develop` 教程树讲插件基础（fiber 生命周期、服务、配置）。
 - [Cordis](https://github.com/cordiverse/cordis) — `ctx.effect`、`ctx.get` 与依赖驱动加载背后的插件框架。
+- [docs/standards.md](docs/standards.md) — 本项目遵循的标准与规范，每条规则可溯源至 DeepSeek 官方指南、官方插件包或第三方惯例。
 - [docs/pitfalls.md](docs/pitfalls.md) — 本插件必须尊重的硬约束（fork 锚点、标题真值、凭据纪律）。
 - [docs/development.md](docs/development.md) — 开发、验证与测试流程。
 - [CHANGELOG.md](CHANGELOG.md) — 发布历史。
