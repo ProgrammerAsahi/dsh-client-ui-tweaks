@@ -103,6 +103,7 @@ Host-side log reading is a streaming scan (long sessions decompress to tens of M
 - [docs/standards.md](docs/standards.md) — the standards this project follows, each rule traced to its DeepSeek official guide, official package, or third-party convention.
 - [docs/pitfalls.md](docs/pitfalls.md) — hard-won constraints this plugin must respect (fork anchors, title truth, credential discipline).
 - [docs/development.md](docs/development.md) — development, verification, and testing workflow.
+- [tests/](tests/) — vitest suite for the host half (`npm test`): route contracts, skip branches, tier ordering, material framing, and title sanitization.
 - [CHANGELOG.md](CHANGELOG.md) — release history.
 
 ## Model Experience
@@ -140,7 +141,7 @@ Independent. Title requests carry no conversation prefix and share no cacheable 
 - **CSS-module selectors** — row sub-elements are found by local-name suffix (`[class*="_title"]`, `[class*="_time"]`), stable against hash changes but not against local-name renames.
 - **K3 tier freshness** — the kimi OAuth credential is read-only by design; after the mimo-migration the token is only fresh while Kimi Code is active (~15 minutes), so the K3 generation tier is often skipped in favor of flash tiers.
 - **Silent built-in failures** — DSH's title generator emits no result event on failure; the plugin can only infer failure from silence (12s wait) and fall back.
-- **Manual verification** — no automated test suite; regressions are caught by a documented CDP checklist (edit flow, family rows, arrows, host routes) against disposable test sessions.
+- **Browser half is manually verified** — the automated suite covers the host half through its routes (29 specs, `npm test`); client DOM behavior is caught by the documented CDP checklist (edit flow, family rows, arrows, host routes) against disposable test sessions.
 - **Untested install paths** — only the `link:` install above is verified; npm publishing and `dsh plugin` installation are not exercised.
 - **Deferred: conversation detail collapse** — collapsing conversation process information behind an expander is a known direction, not implemented.
 

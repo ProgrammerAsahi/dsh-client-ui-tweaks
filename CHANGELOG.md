@@ -5,6 +5,17 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+
+- Compatibility with the 2026-09-26 DSH Desktop update: session opening now goes through `uiWorkspace.openSession` (the older `sessions.open` entry is kept as a fallback), and the sidebar fiber signature accepts both `onRename` and `onRenameRequest`.
+
+### Added
+
+- Automated test suite (`tests/`, vitest): host route contracts, all `/auto-title` skip branches, title-tier ordering, material framing, and title sanitization — driven through the real route handlers with only the llm service and clock mocked. Running the suite leaves user data untouched.
+- `docs/standards.md`: testing standards (writing, coverage, format) traced to the official `docs/testing.md`, official package test layout, and official spec style.
+
 ## [0.3.0] - 2026-09-25
 
 ### Added

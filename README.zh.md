@@ -103,6 +103,7 @@ fork 语义是核心契约。`sessions.fork` 的 `atSeq` 解析为"≥该 seq �
 - [docs/standards.md](docs/standards.md) — 本项目遵循的标准与规范，每条规则可溯源至 DeepSeek 官方指南、官方插件包或第三方惯例。
 - [docs/pitfalls.md](docs/pitfalls.md) — 本插件必须尊重的硬约束（fork 锚点、标题真值、凭据纪律）。
 - [docs/development.md](docs/development.md) — 开发、验证与测试流程。
+- [tests/](tests/) — 宿主半的 vitest 测试套件（`npm test`）：路由契约、skip 分支、出题链序、素材包裹与标题 sanitize。
 - [CHANGELOG.md](CHANGELOG.md) — 发布历史。
 
 ## Model Experience
@@ -140,7 +141,7 @@ fork 语义是核心契约。`sessions.fork` 的 `atSeq` 解析为"≥该 seq �
 - **CSS-module 选择器** — 行内子元素按本地名后缀查找（`[class*="_title"]`、`[class*="_time"]`），对哈希变化稳定、对本地名重命名不稳定。
 - **K3 档的新鲜度** — kimi OAuth 凭据按设计只读；mimo-migration 之后令牌只在 Kimi Code 活跃时新鲜（约 15 分钟），K3 出题档经常被跳过、由 flash 档接棒。
 - **内置失败是静默的** — DSH 的标题生成器失败时不发任何结果事件；插件只能从"沉默"推断失败（12s 等待）并兜底。
-- **人工验证** — 无自动化测试套件；回归靠文档化的 CDP 检查清单（编辑流程、家族行、箭头、宿主路由），使用一次性测试会话执行。
+- **浏览器半人工验证** — 自动化套件经路由覆盖宿主半（29 个 spec，`npm test`）；客户端 DOM 行为靠文档化的 CDP 检查清单（编辑流程、家族行、箭头、宿主路由），使用一次性测试会话执行。
 - **未验证的安装路径** — 只验证了上述 `link:` 安装；npm 发布与 `dsh plugin` 安装未实测。
 - **待做：对话过程信息折叠** — 用展开器折叠对话过程信息是一个已知方向，尚未实现。
 
