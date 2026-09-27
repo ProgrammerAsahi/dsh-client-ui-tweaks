@@ -21,11 +21,19 @@ Five name fields must stay identical (`dsh-client-ui-tweaks`): `package.json` `n
 - Host routes are prefixed per feature (e.g. `/edit-resend-*`); don't overload old prefixes with new features.
 - User-visible strings go through the `t()` helper with `zh` detection at the top of the file. Code comments and JSDoc are English and state the non-obvious contract or motive only — never restate the code.
 
+## Tests
+
+`npm test` runs the vitest suite (`tests/*.spec.js`, shared harness in `tests/helpers.js`).
+The suite mounts `apply(ctx)` with a ctx double and drives the captured route handlers —
+it covers the host half only. The sandbox redirects `$HOME` and `DSH_UI_TWEAKS_DATA_DIR`
+before the plugin loads, so a run can never touch `branches.json`/`autotitle.json`
+(standards rules 23–28).
+
 ## Verification checklist
 
 Before finishing a change:
 
-1. `node --check` both halves.
+1. `npm test`, then `node --check` both halves.
 2. Five-name consistency (above).
 3. Reload smoke: edit buttons and arrows appear after a page reload.
 4. Host routes respond: `GET /edit-resend-branches` (200), `POST /edit-resend-inbox` with a session id (200).

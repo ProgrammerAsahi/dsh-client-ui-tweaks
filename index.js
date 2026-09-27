@@ -24,7 +24,10 @@ export const inject = ["webServer", "llm"];
 
 const execFileAsync = promisify(execFile);
 const pluginRoot = resolve(dirname(fileURLToPath(import.meta.url)));
-const STORE = join(pluginRoot, "branches.json");
+// Test seam (docs/standards.md Adaptations): relocates the user-data stores so the
+// suite can never touch real user data. Unset in production — stores sit beside the plugin.
+const dataRoot = process.env.DSH_UI_TWEAKS_DATA_DIR || pluginRoot;
+const STORE = join(dataRoot, "branches.json");
 
 /**
  * Resolve the sessions directory: `~/.dsh/sessions` first (the home symlink shared by
@@ -66,7 +69,7 @@ async function readStore() {
  * @returns {Promise<void>}
  */
 async function writeStore(branches) {
-  await mkdir(pluginRoot, { recursive: true });
+  await mkdir(dataRoot, { recursive: true });
   await writeFile(STORE, JSON.stringify({ version: 1, branches }, null, 2));
 }
 
@@ -168,7 +171,7 @@ async function listInboxQueued(sessionId) {
 }
 
 // ---------------- /auto-title: automatic summary titles ----------------
-const AUTOTITLE_STORE = join(pluginRoot, "autotitle.json");
+const AUTOTITLE_STORE = join(dataRoot, "autotitle.json");
 const TITLE_PROMPT_FILE = join(pluginRoot, "prompts", "title.txt");
 const KIMI_CREDENTIALS_FILE = join(homedir(), ".kimi-code", "credentials", "kimi-code.json");
 const KIMI_MESSAGES_URL = "https://api.kimi.com/coding/v1/messages";

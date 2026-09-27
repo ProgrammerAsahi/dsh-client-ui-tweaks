@@ -24,6 +24,9 @@
   },
   "homepage": "https://github.com/ProgrammerAsahi/dsh-client-ui-tweaks#readme",
   "type": "module",
+  "scripts": {
+    "test": "vitest run"
+  },
   "main": "index.js",
   "exports": {
     ".": "./index.js",
@@ -51,5 +54,8 @@
         "@deepseek-ai/dsh-cordis-client-runner"
       ]
     }
+  },
+  "devDependencies": {
+    "vitest": "^5.0.2"
   }
 }
